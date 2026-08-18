@@ -1,0 +1,298 @@
+<script>
+  let signaturePad;
+
+  // Isi kotak "Akun Google terdeteksi" berdasarkan email sesi (dikirim lewat window.__DETECTED_EMAIL__ dari index.html)
+  document.addEventListener("DOMContentLoaded", function() {
+    var teksEmail = document.getElementById('detectedEmailText');
+    if (teksEmail && typeof window.__DETECTED_EMAIL__ !== 'undefined' && window.__DETECTED_EMAIL__) {
+      teksEmail.innerText = window.__DETECTED_EMAIL__;
+    } else if (teksEmail) {
+      teksEmail.innerText = "(tidak terdeteksi)";
+    }
+    const select = document.getElementById("regKegiatan");
+
+    select.disabled = true;
+    select.innerHTML = `
+        <option value="">
+            -- Pilih kategori terlebih dahulu --
+        </option>
+    `;
+
+    const canvas = document.getElementById("signatureCanvas");
+    if(canvas)
+    {
+      signaturePad =new SignaturePad(canvas,
+      {
+        penColor:"#111827"
+      });
+    }
+  });
+
+  document.getElementById('formDaftarSistem').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const submitBtn = document.getElementById('subBtnRegister');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memproses Pendaftaran...';
+
+    if(document.getElementById("regJenis").value==""){
+    tampilAlert("Silakan pilih kategori kegiatan.", "warning");
+    return;
+    }
+
+    if(document.getElementById("regKegiatan").value==""){
+        tampilAlert("Silakan pilih nama kegiatan.", "warning");
+        return;
+    }
+
+    if(signaturePad.isEmpty()){
+      tampilAlert(
+          "Silakan isi tanda tangan terlebih dahulu.",
+          "warning"
+      );
+
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = 'Daftar Akun Baru <i class="fa-solid fa-user-plus"></i>';
+      return;
+    }
+
+    const dataDaftar = {
+    nama: document.getElementById("regNama").value,
+    telp: document.getElementById("regTelp").value,
+    jenis: document.getElementById("regJenis").value,
+    kegiatan: document.getElementById("regKegiatan").value,
+    signature: signaturePad.toData()
+    };
+
+    const inviteCode = document.getElementById('inviteCodeHidden').value;
+
+    google.script.run
+      .withSuccessHandler(function(response) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = 'Daftar Akun Baru <i class="fa-solid fa-user-plus"></i>';
+
+        if (response.status === "success") {
+          if (typeof tampilAlert === "function") tampilAlert(response.message, 'success');
+
+          // Langsung arahkan ke tampilan absensi, tanpa perlu login manual lagi
+          document.getElementById('registerView').style.display = 'none';
+
+          const displayID = document.getElementById('displayIDPelatih');
+          const displayNama = document.getElementById('displayNamaPelatih');
+          const displayUKM = document.getElementById('displayUKMPelatih');
+          if (displayID) displayID.innerText = response.user.id || "";
+          if (displayNama) displayNama.innerText = response.user.nama || "";
+          if (displayUKM) displayUKM.innerText = response.user.ukm || "";
+
+          const absenView = document.getElementById('absenView');
+          if (absenView) absenView.style.display = 'flex';
+
+          const btnLogout = document.getElementById('btnLogoutHeader');
+          if (btnLogout) btnLogout.style.display = 'block';
+
+          if (typeof inisialisasiAbsenView === 'function') {
+            inisialisasiAbsenView();
+          }
+        } else {
+          if (typeof tampilAlert === "function") tampilAlert(response.message, 'error');
+        }
+      })
+      .withFailureHandler(function(error) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = 'Daftar Akun Baru <i class="fa-solid fa-user-plus"></i>';
+        if (typeof tampilAlert === "function") tampilAlert("Koneksi gagal atau Fungsi Tidak Ditemukan: " + error.message, 'error');
+      })
+      .registerByInvitation(dataDaftar, inviteCode);
+  });
+
+  function registerByInvitation(formData, inviteCode) {
+
+    const email = Session.getActiveUser().getEmail();
+
+    if (!email) {
+      return {
+        status: "error",
+        message: "Email Google tidak dapat dideteksi."
+      };
+    }
+
+    // Pastikan invitation masih valid
+    const invite = checkInvitation(inviteCode);
+
+    if (invite.status !== "success") {
+      return {
+        status: "error",
+        message: "Link undangan sudah tidak berlaku."
+      };
+    }
+
+    const ss = SpreadsheetApp.openById("1Y1ZnugwO8YE5uQaz8ymBSWUW-h3e5V-ABG1N7JdfSvw");
+
+    const sheetUser = ss.getSheetByName("AllowedUsers");
+    const sheetInvite = ss.getSheetByName("Invitations");
+
+    const data = sheetUser.getDataRange().getValues();
+
+    // Cek email sudah ada
+    for (let i = 1; i < data.length; i++) {
+
+      if (String(data[i][1]).trim().toLowerCase() == email.toLowerCase()) {
+
+        return {
+          status: "error",
+          message: "Email ini sudah terdaftar."
+        };
+
+      }
+
+    }
+
+    // Generate ID
+    const newID = "PL" + String(data.length).padStart(3,"0");
+
+    sheetUser.appendRow([
+      newID,
+      email,
+      formData.nama,
+      formData.kegiatan,
+      formData.telp,
+      "aktif",
+      "Pelatih",
+      formData.jenis,
+      JSON.stringify(formData.signature)
+    ]);
+
+    // Invitation menjadi Used
+    sheetInvite.getRange(invite.row,2).setValue("Used");
+
+    SpreadsheetApp.flush();
+
+    return {
+        status:"success",
+        message:"Registrasi berhasil.",
+        user:{
+            id:newID,
+            email:email,
+            nama:formData.nama,
+            ukm:formData.ukm
+        }
+    };
+
+  }
+
+function loadUKM(){
+    console.log("LOAD UKM DIPANGGIL");
+
+    google.script.run
+    .withSuccessHandler(function(data){
+
+        console.log("DATA UKM:");
+        console.log(data);
+        const select =document.getElementById("regKegiatan");
+        select.disabled = false;
+
+        console.log("SELECT =", select);
+
+        if(!select){
+            console.log("ELEMENT regUKM TIDAK DITEMUKAN");
+            return;
+        }
+
+        select.innerHTML = `
+            <option value="" disabled selected>
+                -- Pilih UKM --
+            </option>
+        `;
+
+        data.forEach(function(ukm){
+            const option = document.createElement("option");
+            option.value = ukm;
+            option.textContent = ukm;
+            select.appendChild(option);
+        });
+        console.log("Jumlah option =", select.options.length);
+    })
+    .withFailureHandler(function(err){
+      console.log(err);
+    })
+    .getListUKM();
+}
+
+
+function loadKategoriKegiatan(){
+
+    const jenis = document.getElementById("regJenis").value;
+    const select = document.getElementById("regKegiatan");
+    const label = document.getElementById("labelKegiatan");
+
+    // Belum memilih kategori
+    if(jenis == ""){
+
+        select.disabled = true;
+        select.innerHTML = `
+            <option value="">
+                -- Pilih kategori terlebih dahulu --
+            </option>
+        `;
+
+        return;
+    }
+
+    // Sudah memilih kategori
+    select.disabled = false;
+
+    select.innerHTML = `
+        <option>
+            Memuat data...
+        </option>
+    `;
+
+    if(jenis == "UKM"){
+
+        label.innerHTML =
+            '<i class="fa-solid fa-volleyball"></i> Nama UKM';
+
+        loadUKM();
+
+    }else{
+
+        label.innerHTML =
+            '<i class="fa-solid fa-users"></i> Nama CLUB';
+
+        loadClub();
+    }
+}
+
+function loadClub(){
+
+  google.script.run
+  .withSuccessHandler(function(data){
+      const select = document.getElementById("regKegiatan");
+      select.disabled = false;
+      select.innerHTML =
+          `<option value="" disabled selected>
+              -- Pilih CLUB --
+          </option>`;
+      data.forEach(function(club){
+
+          const option =
+              document.createElement("option");
+
+          option.value =
+              club;
+
+          option.textContent =
+              club;
+
+          select.appendChild(option);
+      });
+  })
+  .getListClub();
+}
+
+function clearSignature(){
+
+    signaturePad.clear();
+
+}
+</script>
