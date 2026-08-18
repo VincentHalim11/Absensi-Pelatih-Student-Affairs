@@ -1,0 +1,618 @@
+<div id="adminView"
+     style="display:none;width:100%;">
+
+    <div class="admin-layout">
+        <!-- Sidebar -->
+        <aside class="admin-sidebar">
+
+            <div class="admin-logo">
+                <img src="https://www.ciputra.ac.id/wp-content/uploads/2021/09/LOGO-UC-FIX-SEP-2021-01.png"
+                     width="140">
+            </div>
+
+            <button class="admin-menu active"
+                    onclick="showAdminPage('dashboard',this)">
+                <i class="fa-solid fa-house"></i>
+                Dashboard
+            </button>
+
+            <button class="admin-menu"
+                    onclick="showAdminPage('pelatih',this)">
+                <i class="fa-solid fa-user-group"></i>
+                Pelatih
+            </button>
+
+            <button class="admin-menu"
+                    onclick="showAdminPage('absensi',this)">
+                <i class="fa-solid fa-calendar-check"></i>
+                Absensi
+            </button>
+
+            <button class="admin-menu"
+                    onclick="showAdminPage('ukm',this)">
+                <i class="fa-solid fa-trophy"></i>
+                UKM
+            </button>
+
+            <button class="admin-menu"
+                    onclick="showAdminPage('club',this)">
+                <i class="fa-solid fa-trophy"></i>
+                CLUB
+            </button>
+
+            <button class="admin-menu"
+                    onclick="showAdminPage('logbook',this)">
+                <i class="fa-solid fa-file-lines"></i>
+                LogBook
+            </button>
+
+        </aside>
+
+        <!-- Content -->
+        <main class="admin-content">
+            <div id="adminDashboard">
+                <h2>Dashboard Admin</h2>
+                <!-- CARD -->
+                <div class="dashboard-cards">
+                    <div class="dashboard-card">
+                        <div class="card-title">👥 Total Pelatih</div>
+                        <div class="card-value" id="totalPelatih">0</div>
+                    </div>
+
+                    <div class="dashboard-card">
+                        <div class="card-title">🏆 Total UKM</div>
+                        <div class="card-value" id="totalUKM">0</div>
+                    </div>
+
+                    <div class="dashboard-card">
+                        <div class="card-title">🟢 Sedang Latihan</div>
+                        <div class="card-value" id="sedangLatihan">0</div>
+                    </div>
+
+                    <div class="dashboard-card">
+                        <div class="card-title">📅 Absensi Hari Ini</div>
+                        <div class="card-value" id="absensiHariIni">0</div>
+                    </div>
+                </div>
+
+                <!-- BARU SETELAH dashboard-cards -->
+
+                <div class="dashboard-bottom">
+                    <div class="dashboard-chart">
+                        <h3>📊 Statistik Absensi</h3>
+                        <canvas id="chartAbsensi"></canvas>
+                    </div>
+                    <div class="dashboard-activity">
+                        <h3>🕒 Aktivitas Terbaru</h3>
+                        <div id="recentActivityList"></div>
+                    </div>
+                </div>
+            </div>
+          <div id="adminPelatih" style="display:none;">
+              <h2>Data Pelatih</h2>
+
+              <div class="toolbar">
+                <div class="filter-group">
+                    <input
+                    type="text"
+                    id="searchPelatih"
+                    placeholder="Cari nama pelatih..."
+                    onkeyup="filterPelatih()">
+                </div>
+
+                <div class="filter-group">
+                    <label>Kategori</label>
+
+                    <select
+                        id="filterKategoriPelatih"
+                        onchange="loadFilterKegiatan(); filterPelatih();">
+                        <option value="">Semua</option>
+                        <option value="UKM">UKM</option>
+                        <option value="CLUB">CLUB</option>
+
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label>Kegiatan</label>
+                    <select id="filterUKMPelatih" onchange="filterPelatih()">
+                        <option value="">Semua Kegiatan</option>
+                    </select>
+                </div>
+
+              </div>
+
+              <table class="table-admin">
+                  <thead>
+                      <tr>
+                          <th>ID</th>
+                          <th>Nama</th>
+                          <th>UKM</th>
+                          <th>Email</th>
+                          <th>Status</th>
+                          <th>Aksi</th>
+                      </tr>
+                  </thead>
+                  <tbody id="listPelatih">
+                  </tbody>
+              </table>
+              <div id="paginationPelatih" class="pagination"></div>
+          </div>
+
+          <div id="adminAbsensi" style="display:none;">
+            <h2>Data Absensi</h2>
+            <div class="toolbar">
+                <div class="filter-group">
+                    <label>Nama Pelatih</label>
+                    <input
+                        id="searchAbsensi"
+                        placeholder="Cari nama pelatih..."
+                        onkeyup="filterAbsensi()">
+                </div>
+
+                <div class="filter-group">
+                    <label>Kategori</label>
+                    <select id="filterKategoriAbsensi"
+                            onchange="loadFilterKegiatanAbsensi(); filterAbsensi();">
+                        <option value="">Semua</option>
+                        <option value="UKM">UKM</option>
+                        <option value="CLUB">CLUB</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label>Kegiatan</label>
+                    <select
+                        id="filterUKMAbsensi"
+                        onchange="filterAbsensi()">
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label>Status</label>
+                    <select
+                        id="filterStatusAbsensi"
+                        onchange="filterAbsensi()">
+                    </select>
+                </div>
+
+                <div class="filter-date-group">
+
+                <div class="filter-group">
+                    <label>Dari Tanggal</label>
+                    <input
+                        type="date"
+                        id="tanggalMulai"
+                        onchange="filterAbsensi()">
+                </div>
+
+                <div class="filter-group">
+                    <label>Sampai Tanggal</label>
+                    <input
+                        type="date"
+                        id="tanggalSelesai"
+                        onchange="filterAbsensi()">
+                </div>
+
+            </div>
+
+            </div>
+            <table class="table-admin">
+                <thead>
+                    <tr>
+                        <th>Tanggal</th>
+                        <th>Nama</th>
+                        <th>UKM</th>
+                        <th>Masuk</th>
+                        <th>Pulang</th>
+                        <th>Status</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="listAbsensi">
+                </tbody>
+            </table>
+
+        </div>
+
+        <div id="adminUKM" style="display:none;">
+            <h2>Kelola UKM</h2>
+            <div class="toolbar">
+                <input
+                    type="text"
+                    id="searchUKM"
+                    placeholder="Cari UKM..."
+                    onkeyup="filterUKM()">
+
+                <button
+                    class="btn-save"
+                    onclick="openTambahUKM()">
+                    + Tambah UKM
+                </button>
+            </div>
+            <table class="table-admin">
+                <thead>
+                    <tr>
+                        <th>No</th>
+                        <th>Nama UKM</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="listUKM">
+                </tbody>
+            </table>
+        </div>
+
+          <div id="adminClub" style="display:none;">
+              <h2>Kelola CLUB</h2>
+                <div class="toolbar">
+                    <input
+                        id="searchClub"
+                        placeholder="Cari CLUB..."
+                        onkeyup="filterClub()">
+                    <button
+                        class="btn-save"
+                        onclick="openTambahClub()">
+                        + Tambah CLUB
+                    </button>
+                </div>
+                <table class="table-admin">
+                    <thead>
+                        <tr>
+                            <th>No</th>
+                            <th>Nama CLUB</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="listClub">
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="adminLogbook" style="display:none;">
+                <h2>Logbook Pelatih</h2>
+                <p style="color:#64748b; margin-bottom:20px;">
+                    Preview dan export logbook pelatih berdasarkan rentang tanggal.
+                </p>
+                <div class="toolbar">
+                    <div class="filter-group">
+                        <label>Pelatih</label>
+                        <select id="logbookPelatih">
+                            <option value="">
+                                -- Pilih Pelatih --
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Dari Tanggal</label>
+                        <input
+                            type="date"
+                            id="logbookTanggalMulai">
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Sampai Tanggal</label>
+                        <input
+                            type="date"
+                            id="logbookTanggalSelesai">
+                    </div>
+
+                    <div class="logbook-action">
+
+                        <button
+                            class="btn-logbook-preview"
+                            onclick="previewLogbook()">
+                            <i class="fa-solid fa-eye"></i>
+                            Preview
+
+                        </button>
+
+                        <button
+                            class="btn-logbook-export"
+                            onclick="exportPDF()">
+
+                            <i class="fa-solid fa-file-pdf"></i>
+                            Export PDF
+
+                        </button>
+                    </div>
+                </div>
+
+                <div id="previewLogbook" class="logbook-preview">
+                    <p
+                        style="
+                        text-align:center;
+                        color:#94a3b8;
+                        padding:80px 0;">
+
+                        Pilih pelatih dan rentang tanggal kemudian tekan
+                        <b>Preview</b>
+
+                    </p>
+                </div>
+            </div>
+        </main>
+    </div>
+    <div id="modalEditPelatih" class="modal-bg" style="display:none;">
+
+    <div class="modal-card">
+
+        <h2>Edit Pelatih</h2>
+        <input type="hidden" id="editID">
+
+        <div class="form-group">
+            <label>Nama</label>
+            <input id="editNama">
+        </div>
+
+        <div class="form-group">
+            <label>Email</label>
+            <input id="editEmail" readonly>
+        </div>
+
+        <div class="form-group">
+            <label>No HP</label>
+            <input id="editTelp">
+        </div>
+
+        <div class="form-group">
+            <label>UKM</label>
+            <select id="editUKM"></select>
+        </div>
+
+        <div class="form-group">
+            <label>Status</label>
+            <select id="editStatus">
+                <option value="aktif">Aktif</option>
+                <option value="nonaktif">Nonaktif</option>
+            </select>
+        </div>
+
+        <div class="modal-button">
+            <button onclick="closeModalEdit()">
+                Batal
+            </button>
+            <button class="btn-save"
+                    onclick="savePelatih()">
+                Simpan
+            </button>
+        </div>
+    </div>
+
+</div>
+
+<!-- UKM -->
+<div id="modalUKM" class="modal-bg" style="display:none;">
+
+    <div class="modal-card">
+
+        <h2 id="judulUKM">Tambah UKM</h2>
+
+        <input type="hidden" id="oldNamaUKM">
+
+        <div class="form-group">
+            <label>Nama UKM</label>
+            <input id="namaUKM">
+        </div>
+
+        <div class="modal-button">
+            <button onclick="closeModalUKM()">Batal</button>
+
+            <button
+                class="btn-save"
+                onclick="saveUKM()">
+
+                Simpan
+
+            </button>
+        </div>
+
+    </div>
+
+</div>
+<!-- CLUB -->
+<div id="modalClub" class="modal-bg" style="display:none;">
+    <div class="modal-card">
+        <h2 id="judulClub">Tambah CLUB</h2>
+
+        <input
+            type="hidden"
+            id="oldNamaClub">
+
+        <div class="form-group">
+            <label>Nama CLUB</label>
+            <input id="namaClub">
+        </div>
+
+        <div class="modal-button">
+
+            <button onclick="closeModalClub()">
+                Batal
+            </button>
+
+            <button
+                class="btn-save"
+                onclick="saveClub()">
+                Simpan
+            </button>
+        </div>
+    </div>
+</div>
+
+</div>
+<!-- detail absen -->
+<div id="modalDetailAbsensi" class="modal-bg" style="display:none;">
+    <div class="modal-card modal-detail">
+        <h2>Detail Absensi</h2>
+        <table class="detail-table">
+            <tr>
+                <th>Nama</th>
+                <td id="detailNama"></td>
+            </tr>
+
+            <tr>
+                <th>UKM</th>
+                <td id="detailUKM"></td>
+            </tr>
+
+            <tr>
+                <th>Status</th>
+                <td>
+                    <span id="detailStatus"></span>
+
+                    <select id="editStatusAbsensi" style="display:none;">
+                        <option value="Sedang Latihan">Sedang Latihan</option>
+                        <option value="Selesai">Selesai</option>
+                        <option value="Tidak Absen Pulang"> Tidak Absen Pulang</option>
+                    </select>
+                </td>
+            </tr>
+
+            <tr>
+                <th>Tanggal</th>
+                <td id="detailTanggal"></td>
+            </tr>
+
+            <tr>
+                <th>Jam Masuk</th>
+                <td>
+                    <span id="detailMasuk"></span>
+                    <input
+                        type="time"
+                        id="editJamMasuk"
+                        style="display:none;">
+                </td>
+            </tr>
+
+            <tr>
+                <th>Jam Pulang</th>
+                <td>
+                    <span id="detailPulang"></span>
+                    <input
+                        type="time"
+                        id="editJamPulang"
+                        style="display:none;">
+                </td>
+            </tr>
+
+            <tr>
+                <th>Foto Masuk</th>
+                <td>
+                    <span id="labelFotoMasuk"></span>
+                    <button
+                        id="btnFotoMasuk"
+                        class="btn-edit"
+                        style="display:none;">
+                        📷 Lihat Foto Masuk
+                    </button>
+                </td>
+            </tr>
+
+            <tr>
+                <th>Foto Pulang</th>
+                <td>
+                    <span id="labelFotoMasuk"></span>
+                    <button
+                        id="btnFotoPulang"
+                        class="btn-edit"
+                        style="display:none;">
+                        📷 Lihat Foto Pulang
+                    </button>
+                </td>
+            </tr>
+
+            <tr>
+                <th>Logbook</th>
+                <td>
+                    <span id="detailLogbook"></span>
+                    <textarea
+                        id="editLogbook"
+                        style="display:none;">
+                    </textarea>
+                </td>
+            </tr>
+
+            <tr>
+                <th>Catatan</th>
+                <td>
+                    <span id="detailCatatan"></span>
+                    <textarea
+                        id="editCatatan"
+                        style="display:none;">
+                    </textarea>
+                </td>
+            </tr>
+        </table>
+
+        <div class="modal-button">
+            <button
+                id="btnEditAbsensi"
+                class="btn-edit"
+                onclick="enableEditAbsensi()">
+                Edit
+            </button>
+
+            <button
+                id="btnSimpanAbsensi"
+                class="btn-save"
+                onclick="simpanEditAbsensi()"
+                style="display:none;">
+                Simpan
+            </button>
+
+            <button
+                id="btnBatalEdit"
+                class="btn-close"
+                onclick="batalEditAbsensi()"
+                style="display:none;">
+                Batal
+            </button>
+
+            <button
+                id="btnTutupAbsensi"
+                class="btn-close"
+                onclick="closeDetailAbsensi()">
+                Tutup
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="customConfirmModal"
+     style="display:none;
+            position:fixed;
+            inset:0;
+            background:rgba(0,0,0,.6);
+            z-index:9999;
+            justify-content:center;
+            align-items:center;
+            padding:16px;">
+
+    <div class="modal-card">
+        <div style="font-size:44px;">❓</div>
+        <h3 id="confirmTitle">
+            Konfirmasi
+        </h3>
+
+        <p id="confirmMessage"></p>
+        <div
+            style="
+            display:flex;
+            gap:10px;
+            margin-top:20px;">
+            <button
+                class="btn-cancel"
+                onclick="closeConfirm()">
+                Batal
+            </button>
+            <button
+                class="btn-modal-ok"
+                id="btnConfirmYes">
+
+                Ya, Hapus
+            </button>
+        </div>
+    </div>
+</div>
+
