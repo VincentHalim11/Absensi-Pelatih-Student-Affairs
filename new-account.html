@@ -1,0 +1,87 @@
+<div class="register-container" id="registerView" style="display: none;">
+  <div class="register-card-box">
+    <h2>Daftar Akun Pelatih</h2>
+    <p class="register-subtitle">Anda diundang untuk mendaftar. Lengkapi data di bawah untuk melanjutkan.</p>
+
+    <div class="detected-email-box" id="detectedEmailBox">
+      <i class="fa-solid fa-envelope-circle-check"></i>
+      Akun Google terdeteksi: <strong id="detectedEmailText">-</strong>
+    </div>
+
+    <form id="formDaftarSistem">
+      <!-- Kode undangan diisi otomatis lewat JS dari parameter URL, tidak diinput manual -->
+      <input type="hidden" id="inviteCodeHidden" value="">
+
+      <div class="form-group">
+        <label><i class="fa-solid fa-id-card"></i> Nama Lengkap</label>
+        <input type="text" id="regNama" placeholder="Nama Lengkap sesuai KTP" required>
+      </div>
+
+      <div class="form-group">
+        <label><i class="fa-solid fa-phone"></i> Nomor Telepon</label>
+        <input type="tel" id="regTelp" placeholder="081xxxxxxxxx" required>
+      </div>
+
+      <div class="form-group">
+        <label>
+            <i class="fa-solid fa-layer-group"></i>
+            Kategori Kegiatan
+        </label>
+
+        <select id="regJenis" onchange="loadKategoriKegiatan()">
+            <option value="">-- Pilih Kategori --</option>
+            <option value="UKM">UKM</option>
+            <option value="CLUB">CLUB</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+
+        <label id="labelKegiatan">
+          <i class="fa-solid fa-volleyball"></i>
+          Nama UKM
+        </label>
+
+        <select id="regKegiatan" disabled required>
+          <option value="">
+              -- Pilih --
+          </option>
+        </select>
+
+      </div>
+
+      <div class="form-group">
+        <label>
+            <i class="fa-solid fa-signature"></i>
+            Tanda Tangan Digital <span style="color:#d97706;">(Jangan keluar dari kotak)</span>
+        </label>
+
+        <div class="signature-box">
+            <canvas
+                id="signatureCanvas"
+                width="360"
+                height="170">
+            </canvas>
+
+            <small>
+                Tanda tangani pada area di atas menggunakan mouse atau jari.
+            </small>
+
+        </div>
+        <button
+            type="button"
+            class="btn-clear-sign"
+            onclick="clearSignature()">
+
+            <i class="fa-solid fa-eraser"></i>
+            Hapus Tanda Tangan
+
+        </button>
+      </div>
+
+      <button type="submit" id="subBtnRegister" class="btn-action-register">
+        Daftar Akun Baru <i class="fa-solid fa-user-plus"></i>
+      </button>
+    </form>
+  </div>
+</div>
