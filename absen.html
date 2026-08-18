@@ -1,0 +1,313 @@
+<div class="absen-container" id="absenView" style="display:none;">
+
+  <div class="absen-card-box">
+
+    <!-- ================= PROFILE ================= -->
+    <div class="pelatih-profile-banner">
+      <div class="avatar-circle">
+        <i class="fa-solid fa-user-tie"></i>
+      </div>
+
+      <div class="profile-info">
+        <h3 id="displayNamaPelatih">Nama Pelatih</h3>
+        <p>
+          ID:
+          <span id="displayIDPelatih" style="font-weight:700;">-</span>
+          •
+          <span class="badge-ukm" id="displayUKMPelatih">UKM</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- ================= MENU ================= -->
+    <div class="menu-tab">
+
+      <button
+        id="tabDashboard"
+        class="tab-button active"
+        onclick="showDashboard()">
+
+        <i class="fa-solid fa-house"></i>
+        Dashboard
+
+      </button>
+
+      <button
+        id="tabHistory"
+        class="tab-button"
+        onclick="showHistory()">
+
+        <i class="fa-solid fa-clock-rotate-left"></i>
+        History
+
+      </button>
+
+    </div>
+
+    <!-- ================================================= -->
+    <!-- ================= DASHBOARD ====================== -->
+    <!-- ================================================= -->
+
+    <div id="dashboardContent">
+
+      <!-- Tanggal -->
+      <div class="datetime-card">
+
+        <div class="datetime-item">
+          <i class="fa-solid fa-calendar-days"></i>
+          <span id="tanggalSekarang"></span>
+        </div>
+
+        <div class="datetime-item">
+          <i class="fa-solid fa-clock"></i>
+          <span id="jamSekarang"></span>
+        </div>
+
+      </div>
+
+      <!-- Status -->
+      <div id="statusAbsensiCard" class="status-absensi-card status-clockin">
+
+        <div class="status-icon-box">
+          <i id="statusAbsensiIcon"
+            class="fa-solid fa-right-to-bracket"></i>
+        </div>
+
+        <div class="status-content">
+
+          <span class="status-label">
+            STATUS ABSENSI
+          </span>
+
+          <h2 id="statusAbsensiTitle">
+            CLOCK IN
+          </h2>
+
+          <p id="statusAbsensiDesc">
+            Silakan lakukan absensi masuk sebelum memulai latihan.
+          </p>
+
+        </div>
+
+      </div>
+
+      <!-- Progress -->
+      <div class="progress-absensi">
+
+        <div class="progress-step active" id="stepClockIn">
+          <div class="circle">1</div>
+          <span>Clock In</span>
+        </div>
+
+        <div class="progress-line" id="lineClockIn"></div>
+
+        <div class="progress-step" id="stepClockOut">
+          <div class="circle">2</div>
+          <span>Clock Out</span>
+        </div>
+
+        <div class="progress-line" id="lineClockOut"></div>
+
+        <div class="progress-step" id="stepSelesai">
+          <div class="circle">
+            <i class="fa-solid fa-check"></i>
+          </div>
+          <span>Selesai</span>
+        </div>
+
+      </div>
+
+      <!-- GPS -->
+      <div class="location-global-box" id="globalGPSBox">
+
+        <i class="fa-solid fa-location-dot"></i>
+
+        <span id="globalGPSTeks">
+          Mencari Koordinat GPS HP...
+        </span>
+
+        <input type="hidden" id="globalLat">
+        <input type="hidden" id="globalLong">
+
+      </div>
+
+      <!-- CLOCK IN -->
+      <div id="panelAbsenMasuk" class="panel-konten">
+       <h3>
+        <i class="fa-solid fa-camera"></i>
+        Langkah 1 - Absen Masuk
+        </h3>
+        <p class="panel-instruction" id="p_instruksiQR">
+          Ambil foto selfie sebagai bukti kehadiran sebelum memulai latihan.
+        </p>
+        
+        <!-- Kontainer ini dipakai oleh Html5Qrcode untuk memproses gambar (tidak menampilkan live video lagi) -->
+        <div id="kamera-qr-container" style="display:none;"></div>
+
+        <!-- Preview foto QR yang berhasil diambil/diunggah -->
+        <div id="previewFotoQR" style="display:none; text-align:center; margin-bottom:12px;">
+            <img id="imgPreviewQR"
+                style="max-width:220px; width:100%; border-radius:8px; border:2px solid #e2e8f0;">
+        </div>
+        
+        <div class="kontrol-pusat" id="kontrolAktifasiQR">
+          <button type="button" id="btnStartQR" class="btn-core btn-primary" onclick="bukaKameraMasuk()"><i class="fa-solid fa-camera"></i>  Ambil Selfie </button>
+        </div>
+        
+        <!-- Input file tersembunyi: capture="environment" otomatis buka kamera belakang HP,
+            dan otomatis fallback ke file picker biasa kalau di laptop (atribut capture diabaikan browser desktop) -->
+        <input type="file" id="inputFotoQR" accept="image/*" capture="user" style="display:none;" onchange="prosesFotoMasuk(event)">
+        
+        <div class="status-verifikasi" id="statusTeksQR">⚠️ Menunggu Selfie...</div>
+        
+        <button type="button" id="submitClockIn" class="btn-submit-final" onclick="eksekusiClockIn()" disabled>
+          Clock In <i class="fa-solid fa-circle-check"></i>
+        </button>
+      </div>
+
+      <!-- CLOCK OUT -->
+      <div id="panelAbsenPulang"
+           class="panel-konten"
+           style="display:none;">
+
+                <h3>
+        <i class="fa-solid fa-user-check"></i>
+        Langkah 2 - Absen Keluar
+        </h3>
+        <p class="panel-instruction">Ambil foto selfie di area latihan dan tulis isi logbook berita acara.</p>
+        
+        <div class="camera-selfie-box">
+          <img id="imgHasilSelfie" style="display:none; width:100%; max-width:280px; border-radius:8px; border:2px solid #10b981;">
+        </div>
+
+        <div class="kontrol-pusat" style="margin-bottom: 15px;">
+          <button type="button" id="btnAktifKameraSelfie" class="btn-core btn-primary" onclick="bukaKameraSelfie()"><i class="fa-solid fa-video"></i> Ambil Foto Selfie</button>
+        </div>
+
+        <!-- Sama seperti QR: capture="user" otomatis buka kamera depan HP, fallback file picker di laptop -->
+        <input type="file" id="inputFotoSelfie" accept="image/*" capture="user" style="display:none;" onchange="prosesFotoSelfie(event)">
+
+        <div class="form-group">
+          <label style="display:block; font-size:12px; font-weight:600; margin-bottom:5px;">Isi Logbook / Berita Acara Materi Latihan</label>
+          <textarea id="textLogbook" rows="3" placeholder="contoh : latihan  fisik : - push up 20x 2 set - plank 1 menit 2 set. latihan basket : latihan 2 vs 2, latihan formasi,latihan shooting" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; box-sizing:border-box; font-family:inherit;"></textarea>
+        </div>
+        
+        <button type="button" id="submitClockOut" class="btn-submit-final" onclick="eksekusiClockOut()">
+          Clock Out <i class="fa-solid fa-paper-plane"></i>
+        </button>
+      </div>
+
+    </div>
+<!-- UNTUK RECOVERY JIKA BELUM ABSEN PULANG KEMARINNYA -->
+    <div id="panelRecovery"class="panel-konten"style="display:none;">
+        <h3>
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            Penyelesaian Absensi Tertunda
+        </h3>
+
+        <p class="panel-instruction">
+            Anda belum melakukan Clock Out pada latihan sebelumnya.
+            Lengkapi data berikut sebelum melakukan Clock In hari ini.
+        </p>
+
+        <div class="pending-info">
+
+        <div class="pending-item">
+                <strong>Tanggal Latihan</strong><br>
+                <span id="pendingTanggal">-</span>
+            </div>
+
+            <div class="pending-item">
+                <strong>Clock In</strong><br>
+                <span id="pendingJamMasuk">-</span>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Jam Pulang</label>
+            <input type="time" id="recoveryJamPulang">
+        </div>
+
+        <div class="form-group">
+            <label>Logbook</label>
+            <textarea
+              id="recoveryLogbook"
+              rows="6"
+              placeholder="contoh : latihan  fisik : - push up 20x 2 set - plank 1 menit 2 set. latihan basket : latihan 2 vs 2, latihan formasi,latihan shooting">
+            </textarea>
+        </div>
+        <div class="form-group">
+            <label>Foto Bukti Latihan</label>
+
+            <!-- Preview Foto -->
+            <div class="camera-selfie-box">
+
+                <img
+                    id="imgRecovery"
+                    style="
+                        display:none;
+                        width:100%;
+                        max-width:280px;
+                        border-radius:8px;
+                        border:2px solid #10b981;
+                    ">
+
+            </div>
+
+            <!-- Tombol -->
+            <div class="kontrol-pusat" style="margin-bottom:15px;">
+                <button
+                    type="button"
+                    id="btnRecoveryPhoto"
+                    class="btn-core btn-primary"
+                    onclick="bukaKameraRecovery()">
+                    <i class="fa-solid fa-camera"></i>
+                    Ambil Foto Bukti
+                </button>
+            </div>
+
+            <!-- Input -->
+            <input
+                type="file"
+                id="inputRecovery"
+                accept="image/*"
+                capture="user"
+                style="display:none;"
+                onchange="prosesFotoRecovery(event)">
+        </div>
+        <button
+            id="btnSubmitRecovery"
+            class="btn-submit-final"
+            onclick="submitRecovery()">
+
+            Selesaikan Absensi
+        </button>
+
+    </div>
+
+    <!-- ================================================= -->
+    <!-- ================= HISTORY ======================== -->
+    <!-- ================================================= -->
+
+    <div id="historyContent" style="display:none;">
+
+      <h3>
+
+        <i class="fa-solid fa-clock-rotate-left"></i>
+
+        Riwayat Absensi
+
+      </h3>
+
+      <div id="historyList">
+
+        <!-- nanti card history dibuat di sini -->
+
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+
