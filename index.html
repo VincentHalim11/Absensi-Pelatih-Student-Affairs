@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Absensi UKM - Universitas Ciputra</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  </head>
+  <body>
+
+    <!-- Data dari server (code.gs doGet), SUDAH divalidasi di server, bukan cuma dicek "ada isinya atau tidak" -->
+    <script>
+    window.__USER__ = <?!= JSON.stringify(verifiedUser) ?>;
+    window.__INVITE_CODE__ = "<?= inviteCode ?>";
+    window.__INVITE_STATUS__ = "<?= inviteStatus ?>";
+    window.__DETECTED_EMAIL__ = "<?= detectedEmail ?>";
+
+    window.__ACCESS_DENIED_MESSAGE__ = "<?= accessDeniedMessage ?>";
+
+    console.log("USER =", window.__USER__);
+    console.log("INVITE =", window.__INVITE_CODE__);
+    console.log("STATUS =", window.__INVITE_STATUS__);
+    
+
+    console.log("USER =", window.__USER__);
+    </script>
+
+    <div class="content-wrapper">
+
+      <div class="header">
+        <img src="https://www.ciputra.ac.id/wp-content/uploads/2021/09/LOGO-UC-PANJANG-FIX-SEP-2021-01.png" alt="Universitas Ciputra">
+      </div>
+
+      <!-- Halaman Akses Ditolak: ditampilkan kalau belum terdaftar & tidak ada kode undangan yang valid -->
+      <div class="access-denied-container" id="accessDeniedView" style="display: none;">
+        <div class="access-denied-card">
+          <div class="access-denied-icon">🔒</div>
+          <h2>Akses Ditolak</h2>
+          <p id="accessDeniedMessage">Anda belum terdaftar dan tidak memiliki link undangan yang valid.</p>
+        </div>
+      </div>
+
+      <?!= include('new-account'); ?>
+      <?!= include('new-account-css'); ?>
+      <?!= include('new-account-js'); ?>
+      <?!= include('absen'); ?>
+      <?!= include('absen-css'); ?>
+      <?!= include('absen-js'); ?>
+      <?!= include('admin'); ?>
+      <?!= include('admin-css'); ?>
+      <?!= include('admin-js'); ?>
+
+      </div>
+
+    <div id="customAlertModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; justify-content: center; align-items: center; padding: 16px;">
+      <div class="modal-card">
+        <div id="modalAlertIcon">⚠️</div>
+        <h3 id="modalAlertTitle">Pemberitahuan</h3>
+        <p id="modalAlertMessage"></p>
+        <button class="btn-modal-ok" onclick="closeCustomAlert()">OK</button>
+      </div>
+    </div>
+
+    <footer class="custom-footer">
+      <div class="footer-container">
+        <div class="footer-left">
+          <span class="footer-title">Get in Touch with Us</span>
+          <span class="footer-address">
+            📍 CitraLand CBD Boulevard, Made, Kec. Sambikerep, Kota SBY, Jawa Timur 60219
+          </span>
+        </div>
+        <div class="footer-right">
+          © <span id="currentYear"></span> | by Student Affairs
+        </div>
+      </div>
+    </footer>
+
+    <style>
+      html, body { height: 100%; margin: 0; padding: 0; background-color: #f4f6f9; font-family: 'Segoe UI', Arial, sans-serif; }
+      body { display: flex; flex-direction: column; min-height: 100vh; }
+      .content-wrapper { flex: 1 0 auto; box-sizing: border-box; padding-bottom: 40px; width: 100%; display: flex; flex-direction: column; align-items: center; }
+
+      .header { width: 100%; max-width: 1280px; display: flex; justify-content: space-between; align-items: center; padding: 20px; box-sizing: border-box; background: transparent; }
+      .header img { height: 45px; object-fit: contain; }
+
+      /* .btn-logout { background-color: #e11d48; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+      .btn-logout:hover { background-color: #be123c; } */
+
+      .access-denied-container { display: flex; justify-content: center; align-items: center; flex: 1; width: 100%; padding: 20px; box-sizing: border-box; }
+      .access-denied-card { background: #ffffff; width: 100%; max-width: 400px; padding: 40px 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); border-top: 5px solid #e11d48; text-align: center; }
+      .access-denied-icon { font-size: 48px; margin-bottom: 16px; }
+      .access-denied-card h2 { margin: 0 0 12px 0; color: #1e293b; font-size: 20px; font-weight: 700; }
+      .access-denied-card p { margin: 0; color: #64748b; font-size: 14px; line-height: 1.5; }
+
+      .modal-card { background: white; width: 100%; max-width: 340px; text-align: center; padding: 24px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: popup 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+      #modalAlertIcon { font-size: 44px; margin-bottom: 12px; }
+      #modalAlertTitle { font-size: 18px; color: #1e293b; margin: 0 0 8px 0; font-weight: 600; }
+      #modalAlertMessage { font-size: 14px; color: #64748b; margin: 0 0 20px 0; line-height: 1.5; }
+      .btn-modal-ok { background-color: #D97D24; color: white; border: none; width: 100%; padding: 12px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+      .btn-modal-ok:hover { background-color: #c26d1f; }
+
+      @keyframes popup { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+      .custom-footer { flex-shrink: 0; background-color: #D97D24; color: #ffffff; padding: 18px 30px; font-size: 13px; width: calc(100% - 24px); max-width: 1280px; margin: 0 auto 12px auto; box-sizing: border-box; border-radius: 16px; box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05); }
+      .footer-container { display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto; gap: 16px; }
+      .footer-left { display: flex; align-items: center; gap: 15px; }
+      .footer-title { font-weight: 700; letter-spacing: 0.3px; white-space: nowrap; }
+      .footer-address { font-weight: 400; opacity: 0.95; }
+      .footer-right { font-weight: 500; text-align: right; opacity: 0.95; white-space: nowrap; }
+
+      @media (max-width: 768px) {
+        .custom-footer { width: calc(100% - 16px); margin-bottom: 8px; padding: 20px 16px; border-radius: 12px; }
+        .footer-container { flex-direction: column; text-align: center; justify-content: center; gap: 12px; }
+        .footer-left { flex-direction: column; gap: 6px; }
+        .footer-title { font-size: 14px; }
+        .footer-address { font-size: 12px; line-height: 1.5; }
+        .footer-right { text-align: center; font-size: 12px; width: 100%; border-top: 1px solid rgba(255, 255, 255, 0.25); padding-top: 10px; margin-top: 2px; }
+      }
+    </style>
+
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function() {
+        const yearElement = document.getElementById("currentYear");
+        if (yearElement) yearElement.textContent = new Date().getFullYear();
+
+        inisialisasiRoutingAwal();
+      });
+
+      function tampilAlert(pesan, jenis = 'warning') {
+        const modal = document.getElementById('customAlertModal');
+        const icon = document.getElementById('modalAlertIcon');
+        const title = document.getElementById('modalAlertTitle');
+        const message = document.getElementById('modalAlertMessage');
+
+        if (jenis === 'success') {
+          icon.textContent = '✅';
+          title.textContent = 'Berhasil';
+        } else if (jenis === 'error') {
+          icon.textContent = '❌';
+          title.textContent = 'Gagal';
+        } else {
+          icon.textContent = '⚠️';
+          title.textContent = 'Perhatian';
+        }
+
+        message.innerHTML = pesan;
+        modal.style.display = 'flex';
+      }
+
+      function closeCustomAlert() {
+        document.getElementById('customAlertModal').style.display = 'none';
+      }
+
+      // =====================================================
+      // ROUTING OTOMATIS SAAT HALAMAN DIBUKA
+      // Semua keputusan (terdaftar / invite valid) sudah divalidasi
+      // di SERVER (doGet), client di sini cuma menampilkan hasilnya.
+      //
+      // 1. Sudah terdaftar (email cocok di sheet Pelatih) -> langsung absensi
+      // 2. Belum terdaftar TAPI kode undangan VALID (dicek ke sheet Invitations) -> form daftar
+      // 3. Selain itu -> AKSES DITOLAK TOTAL (tidak ada fallback ke login manual)
+      // =====================================================
+      function inisialisasiRoutingAwal() {
+
+        const registerView = document.getElementById("registerView");
+        const absenView = document.getElementById("absenView");
+        const adminView = document.getElementById("adminView");
+        const accessDeniedView = document.getElementById("accessDeniedView");
+
+        if (registerView) registerView.style.display = "none";
+        if (absenView) absenView.style.display = "none";
+        if (adminView) adminView.style.display = "none";
+        if (accessDeniedView) accessDeniedView.style.display = "none";
+
+        // ===============================
+        // USER SUDAH LOGIN
+        // ===============================
+        if (window.__USER__) {
+
+            const data = window.__USER__;
+
+            // ===============================
+            // ADMIN
+            // ===============================
+            if (data.role === "Admin") {
+
+                if (adminView) {
+                    adminView.style.display = "block";
+                }
+
+                if (typeof loadDashboard === "function") {
+                    loadDashboard();
+                }
+
+                return;
+            }
+
+            // ===============================
+            // PELATIH
+            // ===============================
+
+            document.getElementById("displayIDPelatih").innerText = data.id;
+            document.getElementById("displayNamaPelatih").innerText = data.nama;
+            document.getElementById("displayUKMPelatih").innerText = data.ukm;
+
+            if (absenView) {
+                absenView.style.display = "flex";
+            }
+
+            if (typeof inisialisasiAbsenView === "function") {
+                inisialisasiAbsenView();
+            }
+
+            return;
+        }
+
+        // ===============================
+        // INVITATION
+        // ===============================
+        if (window.__INVITE_STATUS__ === "success") {
+
+            if (registerView) {
+                registerView.style.display = "flex";
+            }
+
+            const inviteInput = document.getElementById("inviteCodeHidden");
+            if (inviteInput) {
+                inviteInput.value = window.__INVITE_CODE__;
+            }
+
+            const emailText = document.getElementById("detectedEmailText");
+            if (emailText) {
+                emailText.innerText = window.__DETECTED_EMAIL__;
+            }
+
+            if (typeof loadUKM === "function") {
+                 loadKategoriKegiatan();
+            }
+
+            return;
+        }
+
+        // ===============================
+        // ACCESS DENIED
+        // ===============================
+        if (accessDeniedView) {
+            accessDeniedView.style.display = "flex";
+        }
+
+        const pesan = document.getElementById("accessDeniedMessage");
+        if (pesan) {
+            pesan.innerText = window.__ACCESS_DENIED_MESSAGE__ || "";
+        }
+
+      }
+      
+      window.history.pushState(null, null, window.location.href);
+      window.onpopstate = function () { window.history.go(1); };
+      </script>
+
+      <!-- LOADING OVERLAY -->
+      <div id="loadingOverlay" class="loading-overlay" style="display:none;">
+        <div class="loading-box">
+          <div class="loader"></div>
+          <h3>Memuat Logbook...</h3>
+          <p>Mohon tunggu beberapa saat.</p>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.2.0/dist/signature_pad.umd.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  </body>
+</html>
