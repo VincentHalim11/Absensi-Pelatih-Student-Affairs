@@ -1,0 +1,1044 @@
+<script>
+    let watchId = null;
+    const OFFICE_LAT = -7.285752;
+    const OFFICE_LNG = 112.631716;
+    const MAX_DISTANCE = 150;
+    let streamSelfieMasuk = null;
+    let gpsInterval = null;
+    window.gpsValid = false;
+    window.gpsReady = false;
+    window.diDalamArea = false;
+    window.isSubmittingClockIn = false;
+    window.pendingAttendance = null;
+    window.recoveryFotoBase64 = "";
+
+
+  function inisialisasiAbsenView(){
+    console.log("=== INITSSS ===");
+    console.log("watchId =", watchId);
+    console.log("gpsValid =", window.gpsValid);
+    console.log("jarak =", window.jarakGPS);
+    try {
+      updateTanggalJam();
+      if (typeof window.qrTerbacaValue === 'undefined') window.qrTerbacaValue = "";
+      if (typeof window.stringFotoBase64 === 'undefined') window.stringFotoBase64 = "";
+
+      window.qrTerbacaValue = "";
+      window.stringFotoBase64 = "";
+
+      const panelMasuk = document.getElementById("panelAbsenMasuk");
+      const panelPulang = document.getElementById("panelAbsenPulang");
+      const panelRecovery = document.getElementById("panelRecovery");
+
+      const labelSuksesQR = document.getElementById("statusTeksQR");
+      const img = document.getElementById("imgPreviewQR");
+        if(img){
+            img.src = "";
+        }
+      document.getElementById("previewFotoQR").style.display = "none";
+      const previewQR = document.getElementById("previewFotoQR");
+      if (previewQR) previewQR.style.display = "none";
+
+      const imgHasil = document.getElementById("imgHasilSelfie");
+      if (imgHasil) imgHasil.style.display = "none";
+
+      const btnClockIn = document.getElementById("submitClockIn");
+      if (btnClockIn) {
+        btnClockIn.disabled = true;
+        btnClockIn.innerHTML = 'Kirim Absen Masuk <i class="fa-solid fa-circle-check"></i>';
+      }
+
+      // Sembunyikan semua panel dulu
+      panelMasuk.style.display = "none";
+      panelPulang.style.display = "none";
+      panelRecovery.style.display = "none";
+
+      // Ambil GPS
+// Reset watcher lama
+    if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+    }
+
+    window.gpsValid = false;
+    window.jarakGPS = null;
+
+    const lat = document.getElementById("globalLat");
+    const lng = document.getElementById("globalLong");
+
+    if (lat) lat.value = "";
+    if (lng) lng.value = "";
+
+    mintaGPSOtomatis();
+      //Cek status absensi hari ini
+     google.script.run
+      .withSuccessHandler(function(res){
+          console.log(res);
+          if (res.status == "pending") {
+              window.pendingAttendance = res;
+              // Sembunyikan panel lain
+              panelMasuk.style.display = "none";
+              panelPulang.style.display = "none";
+              panelRecovery.style.display = "block";
+              // GPS tidak diperlukan saat recovery
+              document.getElementById("globalGPSBox").style.display = "none";
+              // Update status card
+              updateStatusAbsensi("pending");
+              // Isi informasi absensi yang belum selesai
+              document.getElementById("pendingTanggal").innerHTML = res.tanggal;
+              document.getElementById("pendingJamMasuk").innerHTML = res.jamMasuk;
+              return;
+          }
+          if(res.status=="not_found"){
+              updateStatusAbsensi("clockin");
+              panelMasuk.style.display="block";
+              return;
+          }
+          if(res.clockIn && !res.clockOut){
+              updateStatusAbsensi("clockout");
+              panelPulang.style.display="block";
+              return;
+          }
+          if(res.clockIn && res.clockOut){
+              updateStatusAbsensi("done");
+              tampilAlert("Absensi hari ini sudah selesai.","success");
+          }
+      })
+      .getAttendanceStatus();
+
+    } catch (err) {
+
+      console.error(err);
+
+    }
+  }
+
+  function bukaKameraQR() {
+    const inputQR = document.getElementById('inputFotoQR');
+    if (inputQR) inputQR.click();
+  }
+
+  function prosesFotoQR(event) {
+      window.qrTerbacaValue = "QR_DISABLED";
+
+      const label = document.getElementById('statusTeksQR');
+
+      if(label){
+        label.className = "status-verifikasi status-ok";
+        label.innerHTML = "✓ Validasi QR dinonaktifkan";
+      }
+
+      cekKesiapanClockIn();
+  }
+
+  function prosesSuksesQR(teksQR) {
+    window.qrTerbacaValue = teksQR;
+    const label = document.getElementById('statusTeksQR');
+    if (label) {
+      label.className = "status-verifikasi status-ok";
+      label.innerHTML = `✓ QR Code Terverifikasi!`;
+    }
+    cekKesiapanClockIn();
+  }
+
+  // =====================================================
+  // TAB NAVIGATION
+  // =====================================================
+  function gantiTabAbsen(tipe) {
+
+  console.log("==========");
+  console.log("Status Absensi =", window.statusAbsensi);
+  console.log("Tab yang diklik =", tipe);
+
+  // Tidak boleh buka apa pun kalau sudah selesai
+  if (window.statusAbsensi === "selesai") {
+    console.log("Ditolak: status selesai");
+    return;
+  }
+
+  // Belum Clock In → tidak boleh buka Clock Out
+  if (window.statusAbsensi === "masuk" && tipe === "pulang") {
+    console.log("Ditolak: belum boleh Clock Out");
+    return;
+  }
+
+  // Sudah Clock In → tidak boleh kembali ke Clock In
+  if (window.statusAbsensi === "pulang" && tipe === "masuk") {
+    console.log("Ditolak: sudah Clock In");
+    return;
+  }
+
+  const tabMasuk = document.getElementById('tabMasukBtn');
+  const tabPulang = document.getElementById('tabPulangBtn');
+
+  const panelMasuk = document.getElementById('panelAbsenMasuk');
+  const panelPulang = document.getElementById('panelAbsenPulang');
+
+  if (tipe === "masuk") {
+
+    tabMasuk.className = "tab-btn active";
+    tabPulang.className = "tab-btn";
+
+    panelMasuk.style.display = "block";
+    panelPulang.style.display = "none";
+
+  } else {
+    tabMasuk.className = "tab-btn";
+    tabPulang.className = "tab-btn active";
+
+    panelMasuk.style.display = "none";
+    panelPulang.style.display = "block";
+  }
+}
+
+  // =====================================================
+  // GPS
+  // =====================================================
+  function mintaGPSOtomatis() {
+
+  if (!navigator.geolocation) {
+    const teks = document.getElementById("globalGPSTeks");
+    if (teks) teks.innerText = "GPS Tidak Didukung Browser.";
+    return;
+  }
+
+  // Jangan membuat watcher baru kalau sudah ada
+  if (watchId !== null) {
+    return;
+  }
+
+  watchId = navigator.geolocation.watchPosition(
+
+    function (pos) {
+
+      const lat = document.getElementById("globalLat");
+      const lng = document.getElementById("globalLong");
+
+      const latitude = pos.coords.latitude;
+      const longitude = pos.coords.longitude;
+      const accuracy = pos.coords.accuracy;
+      window.gpsReady = true;
+      //tambahan validasi (klo tambah error hapus saja)
+      if (accuracy > 100) {
+        window.gpsReady = false;
+        window.diDalamArea = false;
+        const box = document.getElementById("globalGPSBox");
+        const teks = document.getElementById("globalGPSTeks");
+        box.className = "location-global-box gps-danger";
+        teks.innerHTML =
+            `⚠️ GPS belum akurat (±${Math.round(accuracy)} m).<br>
+            Silakan tunggu beberapa detik atau pindah ke area yang lebih terbuka.`;
+        cekKesiapanClockIn();
+        return;
+      }
+      //stop
+
+      const jarak = hitungJarak(
+        latitude,
+        longitude,
+        OFFICE_LAT,
+        OFFICE_LNG
+      );
+
+      window.jarakGPS = jarak;
+
+      console.log("Latitude :", latitude);
+      console.log("Longitude:", longitude);
+      console.log("Accuracy :", pos.coords.accuracy);
+      console.log("Jarak:", Math.round(jarak));
+
+      if (lat) lat.value = latitude;
+      if (lng) lng.value = longitude;
+
+      const box = document.getElementById("globalGPSBox");
+      const teks = document.getElementById("globalGPSTeks");
+
+      if (box && teks) {
+
+        if (jarak <= MAX_DISTANCE) {
+
+          window.diDalamArea = true;
+          box.className = "location-global-box gps-success";
+          teks.innerHTML =
+            `✅ Dalam area latihan (${Math.round(jarak)} m)<br>
+            Accuracy: ±${Math.round(pos.coords.accuracy)} m`;
+
+          const kontrolQR = document.getElementById("kontrolAktifasiQR");
+          if (kontrolQR) {
+              kontrolQR.style.display = "none";
+          }
+
+          const statusQR = document.getElementById("statusTeksQR");
+          if (statusQR) {
+              statusQR.innerHTML = "✅ Selfie tidak diperlukan.";
+          }
+
+        } else {
+          window.diDalamArea = false;
+          box.className = "location-global-box gps-danger";
+          teks.innerHTML =
+            `📍 GPS Terkunci (${Math.round(jarak)} m dari lokasi latihan)<br>
+              Accuracy: ±${Math.round(pos.coords.accuracy)} m`;
+
+          const kontrolQR = document.getElementById("kontrolAktifasiQR");
+            if (kontrolQR) {
+                kontrolQR.style.display = "flex";
+            }
+
+            const statusQR = document.getElementById("statusTeksQR");
+            if (statusQR) {
+                statusQR.innerHTML =
+                    "⚠️ Anda berada di luar area latihan. Silakan ambil foto Selfie.";
+            }
+
+        }
+
+      }
+
+      cekKesiapanClockIn();
+
+    },
+
+    function (err) {
+
+      console.log(err);
+
+      const teks = document.getElementById("globalGPSTeks");
+
+      if (teks)
+        teks.innerHTML = "Wajib mengizinkan lokasi (GPS) untuk absen!";
+
+    },
+
+    {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 10000
+    }
+
+  );
+
+}
+
+  function cekKesiapanClockIn(){
+    const btn = document.getElementById("submitClockIn");
+    if(!btn) return;
+    // Tombol hanya mati kalau GPS belum siap
+    btn.disabled = !window.gpsReady
+  }
+
+  // =====================================================
+  // CLOCK IN
+  // =====================================================
+  function eksekusiClockIn() {
+
+    if(window.isSubmittingClockIn){
+    return;
+    }
+
+    // GPS belum siap
+    if(!window.gpsReady){
+        tampilAlert(
+            "GPS masih belum siap. Silakan tunggu beberapa detik.",
+            "warning"
+        );
+        return;
+    }
+
+    // CEK foto selfie
+    if (window.jarakGPS > MAX_DISTANCE &&!window.stringFotoBase64) {
+      if (typeof tampilAlert === "function") {
+        tampilAlert("Anda wajib menyertakan Foto Selfie Masuk!", "warning");
+      }
+      return;
+    }
+
+    const btn = document.getElementById("submitClockIn");
+    if(!btn) return;
+    // Jangan ubah status tombol saat sedang mengirim
+    window.isSubmittingClockIn = true;
+
+    // Mulai loading
+    const d = new Date();
+    const jamFormat = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2);
+
+    const dataPack = {
+      idPelatih: document.getElementById('displayIDPelatih').innerText,
+      nama: document.getElementById('displayNamaPelatih').innerText,
+      ukm: document.getElementById('displayUKMPelatih').innerText,
+
+      jamMasuk: jamFormat,
+
+      latMasuk: document.getElementById('globalLat').value,
+      longMasuk: document.getElementById('globalLong').value,
+
+      fotoMasuk: window.stringFotoBase64,// nanti diisi URL Drive
+      status: "Sedang Latihan"
+    };
+    
+    btn.disabled = true;
+    btn.innerHTML =
+    '<i class="fa-solid fa-spinner fa-spin"></i> Mengirim data...';
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        window.isSubmittingClockIn = false;
+        btn.disabled = false;
+        btn.innerHTML = `Kirim Absen Masuk <i class="fa-solid fa-circle-check"></i>`;
+        if (res.status === "success") {
+          if (typeof tampilAlert === "function") tampilAlert(res.message, 'success');
+          if (res.status === "success") {
+              tampilAlert(
+              `Clock In berhasil.
+              Selamat berlatih!
+              Jangan lupa melakukan Clock Out setelah kegiatan latihan selesai.".`,
+              "success");
+              // Reset QR
+              window.qrTerbacaValue = "";
+
+              // Muat ulang tampilan sesuai status terbaru
+              inisialisasiAbsenView();
+          }
+        } else {
+          if (typeof tampilAlert === "function") tampilAlert(res.message, 'error');
+        }
+      })
+      .withFailureHandler(function(e) {
+        window.isSubmittingClockIn = false; 
+        btn.disabled = false;
+        btn.innerHTML = `Kirim Absen Masuk <i class="fa-solid fa-circle-check"></i>`;
+        if (typeof tampilAlert === "function") tampilAlert(e.message, 'error');
+      })
+      .clockInServer(dataPack);
+  }
+
+  // =====================================================
+  // SELFIE — Sama seperti QR: pakai input file + capture, TANPA getUserMedia
+  // =====================================================
+  function bukaKameraSelfie() {
+    const inputSelfie = document.getElementById('inputFotoSelfie');
+    if (inputSelfie) inputSelfie.click();
+  }
+
+  async function kompresFoto(file, maxWidth = 1280, quality = 0.75) {
+
+      return new Promise((resolve, reject) => {
+
+          const reader = new FileReader();
+
+          reader.onload = function(e) {
+
+              const img = new Image();
+
+              img.onload = function() {
+
+                  let width = img.width;
+                  let height = img.height;
+
+                  // Batasi lebar maksimal 1280 px
+                  if (width > maxWidth) {
+                      height = height * (maxWidth / width);
+                      width = maxWidth;
+                  }
+
+                  const canvas = document.createElement("canvas");
+
+                  canvas.width = width;
+                  canvas.height = height;
+
+                  const ctx = canvas.getContext("2d");
+
+                  ctx.drawImage(
+                      img,
+                      0,
+                      0,
+                      width,
+                      height
+                  );
+
+                  canvas.toBlob(
+                      function(blob) {
+
+                          if (!blob) {
+                              reject(new Error("Gagal mengompres foto."));
+                              return;
+                          }
+
+                          const readerCompressed = new FileReader();
+
+                          readerCompressed.onload = function(e) {
+                              resolve(e.target.result);
+                          };
+                          readerCompressed.onerror = reject;
+                          readerCompressed.readAsDataURL(blob);
+                      },
+                      "image/jpeg",
+                      quality
+                  );
+              };
+              img.onerror = reject;
+              img.src = e.target.result;
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+      });
+  }
+
+  async function prosesFotoSelfie(event) {
+
+      const file = event.target.files[0];
+
+      if (!file) return;
+
+      try {
+
+          const btn = document.getElementById("submitClockIn");
+
+          if (btn) {
+              btn.disabled = true;
+              btn.innerHTML =
+                  '<i class="fa-solid fa-spinner fa-spin"></i> Memproses foto...';
+          }
+
+          // Kompres foto
+          window.stringFotoBase64 = await kompresFoto(file);
+
+          // Tampilkan hasil kompresi
+          const img = document.getElementById("imgHasilSelfie");
+
+          if (img) {
+              img.src = window.stringFotoBase64;
+              img.style.display = "block";
+          }
+
+          if (btn) {
+              btn.innerHTML =
+                  'Kirim Absen Masuk <i class="fa-solid fa-circle-check"></i>';
+
+              btn.disabled = false;
+          }
+
+      } catch (err) {
+
+          console.error(err);
+
+          tampilAlert(
+              "Gagal memproses foto. Silakan coba lagi.",
+              "error"
+          );
+
+      }
+
+      event.target.value = "";
+  }
+
+  function bukaKameraMasuk() {
+  const input = document.getElementById("inputFotoQR");
+
+  if (input) {
+    input.click();
+  }
+
+}
+
+async function prosesFotoMasuk(event) {
+
+    const file = event.target.files[0];
+
+    if (!file) return;
+
+    try {
+
+        // Kompres foto
+        window.stringFotoBase64 = await kompresFoto(file);
+
+        // Tampilkan hasil kompresi
+        const img = document.getElementById("imgPreviewQR");
+
+        if (img) {
+            img.src = window.stringFotoBase64;
+        }
+
+        document.getElementById("previewFotoQR").style.display = "block";
+
+        document.getElementById("statusTeksQR").innerHTML =
+            "✅ Selfie berhasil diambil";
+
+        document.getElementById("statusTeksQR").className =
+            "status-verifikasi status-ok";
+
+        cekKesiapanClockIn();
+
+    } catch (err) {
+
+        console.error(err);
+
+        tampilAlert(
+            "Gagal memproses foto. Silakan coba lagi.",
+            "error"
+        );
+
+    }
+
+    event.target.value = "";
+}
+
+  // =====================================================
+  // CLOCK OUT
+  // =====================================================
+function eksekusiClockOut() {
+  if (!window.stringFotoBase64) {
+    tampilAlert("Anda wajib menyertakan Foto Selfie Pulang!", "warning");
+    return;
+  }
+  const logbook = document.getElementById("textLogbook").value.trim();
+
+  if (!logbook) {
+    tampilAlert("Kolom Logbook tidak boleh kosong!", "warning");
+    return;
+  }
+  konfirmasiClockOut(function () {
+    prosesClockOut();
+  });
+
+}
+
+function prosesClockOut() {
+
+  if (!window.stringFotoBase64) {
+    if (typeof tampilAlert === "function") {
+      tampilAlert("Anda wajib menyertakan Foto Selfie Pulang!", "warning");
+    }
+    return;
+  }
+
+  const logbook = document.getElementById("textLogbook").value.trim();
+
+  if (!logbook) {
+    if (typeof tampilAlert === "function") {
+      tampilAlert("Kolom Logbook tidak boleh kosong!", "warning");
+    }
+    return;
+  }
+
+  const btn = document.getElementById("submitClockOut");
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mengirim...';
+
+  const sekarang = new Date();
+
+  const jamPulang =
+    ("0" + sekarang.getHours()).slice(-2) + ":" +
+    ("0" + sekarang.getMinutes()).slice(-2);
+
+  const dataPack = {
+    idPelatih: document.getElementById("displayIDPelatih").innerText,
+    jamPulang: jamPulang,
+    fotoPulang: window.stringFotoBase64,
+    latPulang: document.getElementById("globalLat").value,
+    longPulang: document.getElementById("globalLong").value,
+    logbook: logbook
+  };
+  google.script.run
+    .withSuccessHandler(function(res){
+
+      btn.disabled = false;
+      btn.innerHTML = 'Kirim Absen Pulang <i class="fa-solid fa-paper-plane"></i>';
+
+      if(res.status === "success"){
+
+        tampilAlert(res.message,"success");
+
+        document.getElementById("textLogbook").value = "";
+
+        window.stringFotoBase64 = "";
+
+        const img = document.getElementById("imgHasilSelfie");
+
+        if(img){
+          img.style.display = "none";
+        }
+
+        if(typeof inisialisasiAbsenView === "function"){
+          inisialisasiAbsenView();
+        }
+
+      }else{
+
+        tampilAlert(res.message,"error");
+
+      }
+
+    })
+    .withFailureHandler(function(err){
+
+      btn.disabled = false;
+      btn.innerHTML = 'Kirim Absen Pulang <i class="fa-solid fa-paper-plane"></i>';
+
+      tampilAlert(err.message,"error");
+
+    })
+    .clockOutServer(dataPack);
+
+}
+
+function updateStatusAbsensi(status){
+
+    const card  = document.getElementById("statusAbsensiCard");
+    const icon  = document.getElementById("statusAbsensiIcon");
+    const title = document.getElementById("statusAbsensiTitle");
+    const desc  = document.getElementById("statusAbsensiDesc");
+
+    const stepIn   = document.getElementById("stepClockIn");
+    const stepOut  = document.getElementById("stepClockOut");
+    const stepDone = document.getElementById("stepSelesai");
+
+    const lineIn  = document.getElementById("lineClockIn");
+    const lineOut = document.getElementById("lineClockOut");
+
+    // Reset
+    stepIn.classList.remove("active");
+    stepOut.classList.remove("active");
+    stepDone.classList.remove("active");
+
+    lineIn.classList.remove("active");
+    lineOut.classList.remove("active");
+
+    if(status === "clockin"){
+        card.className = "status-absensi-card status-clockin";
+        icon.className = "fa-solid fa-right-to-bracket";
+        title.innerHTML = "CLOCK IN";
+        desc.innerHTML = "Silakan lakukan absensi masuk sebelum memulai latihan.";
+        stepIn.classList.add("active");
+
+    }
+
+    else if(status === "clockout"){
+        card.className = "status-absensi-card status-clockout";
+        icon.className = "fa-solid fa-right-from-bracket";
+        title.innerHTML = "CLOCK OUT";
+        desc.innerHTML = "Silakan lengkapi selfie dan logbook untuk mengakhiri latihan.";
+        stepIn.classList.add("active");
+        stepOut.classList.add("active");
+        lineIn.classList.add("active");
+
+    }
+
+    else if(status === "done"){
+        card.className = "status-absensi-card status-selesai";
+        icon.className = "fa-solid fa-circle-check";
+        title.innerHTML = "SELESAI";
+        desc.innerHTML ="Absensi hari ini telah selesai.";
+        stepIn.classList.add("active");
+        stepOut.classList.add("active");
+        stepDone.classList.add("active");
+        lineIn.classList.add("active");
+        lineOut.classList.add("active");
+    }
+
+    else if(status=="pending"){
+    card.className = "status-absensi-card status-warning";
+    icon.className = "fa-solid fa-triangle-exclamation";
+    title.innerHTML = "ABSENSI TERTUNDA";
+    desc.innerHTML = "Lengkapi absensi latihan sebelumnya sebelum melakukan Clock In.";
+
+    stepIn.classList.remove("active");
+    stepOut.classList.remove("active");
+    stepDone.classList.remove("active");
+
+    lineIn.classList.remove("active");
+    lineOut.classList.remove("active");
+    }
+}
+
+function updateTanggalJam(){
+
+  const sekarang = new Date();
+  const opsiTanggal = {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+  };
+  document.getElementById("tanggalSekarang").innerHTML =
+      sekarang.toLocaleDateString("id-ID", opsiTanggal);
+
+  document.getElementById("jamSekarang").innerHTML =
+      sekarang.toLocaleTimeString("id-ID") + " WIB";
+}
+
+updateTanggalJam();
+setInterval(updateTanggalJam,1000);
+
+
+function hitungJarak(lat1, lon1, lat2, lon2) {
+
+  const R = 6371000; // meter
+
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) *
+    Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c;
+} 
+
+function loadHistory() {
+  google.script.run
+    .withSuccessHandler(function(data) {
+
+      console.log("3. Data diterima");
+      console.log(data);
+
+      const historyList = document.getElementById("historyList");
+
+      historyList.innerHTML = "";
+
+      if (!data || data.length === 0) {
+
+        historyList.innerHTML = `
+          <div class="history-empty">
+              Belum ada riwayat absensi.
+          </div>
+        `;
+
+        return;
+      }
+
+      data.forEach(item => {
+         let fotoMasukHTML = "";
+          if (item.fotoMasuk === "Latihan di Kampus") {
+              fotoMasukHTML = `
+                  <p>📍 Latihan di Kampus</p>
+              `;
+          } else {
+              fotoMasukHTML = `
+                  <a href="${item.fotoMasuk}" target="_blank" class="btn-history">
+                      📷 Lihat Foto Masuk
+                  </a>
+              `;
+          }
+          let fotoPulangHTML = "";
+          if (item.fotoPulang) {
+              fotoPulangHTML = `
+                  <a href="${item.fotoPulang}" target="_blank" class="btn-history">
+                      📷 Lihat Foto Pulang
+                  </a>
+              `;
+          }
+
+        historyList.innerHTML += `
+          <div class="history-card">
+
+              <div class="history-summary"
+                  onclick="toggleHistory(this)">
+
+                  <div>
+
+                      <h3>${item.tanggal}</h3>
+
+                      <span class="badge-status">
+                          ${item.status}
+                      </span>
+
+                  </div>
+
+                  <i class="fa-solid fa-chevron-down"></i>
+
+              </div>
+
+              <div class="history-detail">
+
+                  <div class="history-row">
+                      <span>🏀 UKM</span>
+                      <b>${item.ukm}</b>
+                  </div>
+
+                  <div class="history-row">
+                      <span>🕒 Clock In</span>
+                      <b>${item.jamMasuk}</b>
+                  </div>
+
+                  <div class="history-row">
+                      <span>🕒 Clock Out</span>
+                      <b>${item.jamPulang}</b>
+                  </div>
+
+                  <div class="history-logbook">
+                      <b>📝 Logbook</b>
+                      <p>${item.logbook}</p>
+                  </div>
+
+                  <div class="history-foto">
+
+                      ${fotoMasukHTML}
+
+                      ${fotoPulangHTML}
+
+                  </div>
+
+              </div>
+
+          </div>
+          `;
+      });
+    })
+
+    .withFailureHandler(function(err) {
+      console.log(err);
+    })
+    .getHistoryPelatih();
+}
+
+//MENUNJUKKAN History Absensi
+function toggleHistory(element){
+    const detail = element.nextElementSibling;
+    const icon = element.querySelector("i");
+    if(detail.style.display === "block"){
+        detail.style.display = "none";
+        icon.classList.remove("fa-chevron-up");
+        icon.classList.add("fa-chevron-down");
+    }
+    else{
+        detail.style.display = "block";
+        icon.classList.remove("fa-chevron-down");
+        icon.classList.add("fa-chevron-up");
+    }
+}
+
+function showDashboard(){
+
+  document.getElementById("dashboardContent").style.display = "block";
+  document.getElementById("historyContent").style.display = "none";
+
+  document.getElementById("tabDashboard").classList.add("active");
+  document.getElementById("tabHistory").classList.remove("active");
+
+}
+
+
+function showHistory(){
+  console.log("1. showHistory dipanggil");
+
+  document.getElementById("dashboardContent").style.display = "none";
+  document.getElementById("historyContent").style.display = "block";
+
+  document.getElementById("tabDashboard").classList.remove("active");
+  document.getElementById("tabHistory").classList.add("active");
+
+  loadHistory();
+}
+
+//NOTIFIKASI  clockout
+function konfirmasiClockOut(onYes){
+
+    document.getElementById("confirmTitle").innerHTML =
+        "⚠️ Konfirmasi Clock Out";
+
+    document.getElementById("confirmMessage").innerHTML = `
+        Pastikan seluruh kegiatan latihan telah selesai
+        dan data yang Anda masukkan sudah benar.
+        <br><br>
+        <b>Perhatian:</b> Setelah melakukan <b>Clock Out</b>,
+        data absensi hari ini tidak dapat diubah melalui aplikasi.
+        Apabila terdapat kesalahan, silakan menghubungi
+        <b>Student Affairs</b>.
+    `;
+    const btn = document.getElementById("btnConfirmYes");
+    btn.innerHTML = "Ya, Clock Out";
+    document.getElementById("customConfirmModal").style.display = "flex";
+    btn.onclick = function(){
+        document.getElementById("customConfirmModal").style.display = "none";
+        onYes();
+
+    };
+}
+
+//RECOVERY ABSEN
+function bukaKameraRecovery(){
+
+    document
+        .getElementById("inputRecovery")
+        .click();
+
+}
+
+function prosesFotoRecovery(event){
+    const file = event.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e){
+        window.recoveryFotoBase64 = e.target.result;
+        const img = document.getElementById("imgRecovery");
+        img.src = window.recoveryFotoBase64;
+        img.style.display = "block";
+        document.getElementById("btnRecoveryPhoto").innerHTML =
+            '<i class="fa-solid fa-camera-rotate"></i> Ambil Ulang Foto';
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
+}
+
+function submitRecovery(){
+    const jamPulang = document.getElementById("recoveryJamPulang").value;
+    const logbook = document.getElementById("recoveryLogbook").value.trim();
+    const jamMasuk = window.pendingAttendance.jamMasuk;
+
+    if (timeToMinutes(jamPulang) <= timeToMinutes(jamMasuk)) {
+        tampilAlert(
+            "Jam pulang harus lebih besar dari jam masuk.",
+            "warning"
+        );
+        return;
+    }
+
+    if(!jamPulang){
+        tampilAlert("Jam pulang wajib diisi.","warning");
+        return;
+    }
+
+    if(!logbook){
+        tampilAlert("Logbook wajib diisi.","warning");
+        return;
+    }
+
+    if(!window.recoveryFotoBase64){
+        tampilAlert("Foto wajib diisi.","warning");
+        return;
+    }
+
+    const btn = document.getElementById("btnSubmitRecovery");
+    btn.disabled = true;
+    btn.innerHTML ='<i class="fa-solid fa-spinner fa-spin"></i> Mengirim...';
+
+    google.script.run
+      .withSuccessHandler(function(res){
+          btn.disabled = false;
+          btn.innerHTML = 'Selesaikan Absensi <i class="fa-solid fa-paper-plane"></i>';
+          tampilAlert(res.message,"success");
+          inisialisasiAbsenView();
+      })
+      .submitRecovery({
+          row:window.pendingAttendance.row,
+          jamPulang:jamPulang,
+          logbook:logbook,
+          foto:window.recoveryFotoBase64
+      });
+}
+
+function timeToMinutes(timeString){
+  const parts = timeString.split(":");
+  const hour = parseInt(parts[0],10);
+  const minute = parseInt(parts[1],10);
+  return (hour * 60) + minute;
+}
+
+</script>
