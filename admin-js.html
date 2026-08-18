@@ -1,0 +1,1569 @@
+<script>
+let allPelatih = [];
+let allUKM = [];
+let allClub = [];
+let filteredPelatih = [];
+
+let currentAbsensi = null;
+let chartAbsensi = null;
+let isSavingClub = false;
+let isDeletingClub = false;
+let isSavingUKM = false;
+let isDeletingUKM = false;
+let currentPagePelatih = 1;
+const rowsPerPagePelatih = 10;
+
+function showAdminPage(page, btn){
+
+    console.log("SHOW PAGE =", page);
+
+    // Mapping nama halaman dengan id HTML
+    const pageMap = {
+        dashboard : "adminDashboard",
+        pelatih   : "adminPelatih",
+        absensi   : "adminAbsensi",
+        ukm        : "adminUKM",
+        club       : "adminClub",
+        logbook   : "adminLogbook"
+    };
+
+    // Sembunyikan semua halaman
+    Object.values(pageMap).forEach(function(id){
+        const element = document.getElementById(id);
+
+        if(element){
+            element.style.display = "none";
+        }
+    });
+
+    // Tampilkan halaman yang dipilih
+    const target = document.getElementById(pageMap[page]);
+    console.log("page =", page);
+    console.log("pageMap =", pageMap[page]);
+
+    if(!target){
+        console.error("Halaman tidak ditemukan :", page);
+        return;
+    }
+
+    target.style.display = "block";
+
+    // Hilangkan highlight semua menu
+    document.querySelectorAll(".admin-menu").forEach(function(menu){
+        menu.classList.remove("active");
+    });
+
+    // Aktifkan menu yang dipilih
+    if(btn){
+        btn.classList.add("active");
+    }
+
+    // Load data sesuai halaman
+    switch(page){
+
+        case "dashboard":
+          loadDashboard();
+          break;
+
+        case "pelatih":
+          loadFilterKegiatan();
+          loadPelatih();
+          initSearch();
+          break;
+
+        case "absensi":
+            setDefaultTanggal();
+            loadMasterKategori(function(){
+                loadAbsensi();
+            });
+            initSearch();
+        break;
+        case "ukm":
+          loadUKMAdmin();
+          initSearch();
+          break;
+
+        case "club":
+          loadCLUBAdmin();
+          initSearch();
+          break;
+
+        case "logbook":
+            loadPelatihLogbook();
+        break;
+    }
+}
+function loadPelatih(){
+
+    google.script.run
+    .withSuccessHandler(function(data){
+    allPelatih = data;
+    filteredPelatih = data;
+    currentPagePelatih = 1;
+    renderPelatih(filteredPelatih);
+  })
+    .getListPelatih();
+}
+
+function openEditPelatih(item){
+    document.getElementById("modalEditPelatih").style.display="flex";
+    document.getElementById("editID").value=item.id;
+    document.getElementById("editNama").value=item.nama;
+    document.getElementById("editEmail").value=item.email;
+    document.getElementById("editTelp").value=item.telp;
+    document.getElementById("editStatus").value=item.status;
+    loadUKMSelect("editUKM", item.ukm);
+}
+
+function closeModalEdit(){
+    document.getElementById("modalEditPelatih").style.display="none";
+}
+
+function savePelatih(){
+    const data = {
+        id: document.getElementById("editID").value,
+        nama: document.getElementById("editNama").value,
+        telp: document.getElementById("editTelp").value,
+        ukm: document.getElementById("editUKM").value,
+        status: document.getElementById("editStatus").value
+    };
+
+    google.script.run
+    .withSuccessHandler(function(res)
+    {
+      alert(res.message);
+      closeModalEdit();
+      loadPelatih();
+    })
+    .withFailureHandler(function(err){
+        alert(err.message);
+    })
+    .updatePelatih(data);
+}
+
+function loadUKMSelect(selectID, selectedValue = ""){
+    google.script.run
+    .withSuccessHandler(function(data){
+
+      const select = document.getElementById(selectID);
+      select.innerHTML = "";
+
+      data.forEach(function(ukm)
+      {
+        const option = document.createElement("option");
+
+        option.value = ukm;
+        option.textContent = ukm;
+
+        if(ukm === selectedValue){
+            option.selected = true;
+        }
+        select.appendChild(option);
+      });
+    })
+    .getListUKM();
+}
+
+function renderPelatih(data){
+
+  const tbody = document.getElementById("listPelatih");
+
+  tbody.innerHTML = "";
+
+  const start = (currentPagePelatih - 1) * rowsPerPagePelatih;
+  const end = start + rowsPerPagePelatih;
+
+  const pageData = data.slice(start,end);
+
+  pageData.forEach(function(item, index){
+    let badge = item.status == "aktif"
+        ? '<span class="badge-active">Aktif</span>'
+        : '<span class="badge-nonactive">Nonaktif</span>';
+    tbody.innerHTML += `
+        <tr>
+            <td>${item.id}</td>
+            <td>${item.nama}</td>
+            <td>${item.ukm}</td>
+            <td>${item.email}</td>
+            <td>${badge}</td>
+            <td>
+              <button
+                  class="btn-edit"
+                    onclick='openEditPelatih(${JSON.stringify(item)})'>
+                    ✏ Edit
+              </button>
+            </td>
+        </tr>
+    `;
+  });
+}
+
+
+function filterPelatih(){
+
+    const kategori = document
+        .getElementById("filterKategoriPelatih")
+        .value;
+    const keyword = document
+        .getElementById("searchPelatih")
+        .value
+        .toLowerCase();
+    const ukm = document
+        .getElementById("filterUKMPelatih")
+        .value;
+
+    const hasil = allPelatih.filter(function(item){
+        const cocokNama =
+            item.nama.toLowerCase().includes(keyword);
+        const cocokKategori =
+            kategori == "" ||
+            item.jenis == kategori;
+        const cocokUKM =
+            ukm == "" ||
+            item.ukm == ukm;
+        return cocokNama &&
+               cocokKategori &&
+               cocokUKM;
+    });
+
+    filteredPelatih = hasil;
+    currentPagePelatih = 1;
+
+    renderPelatih(filteredPelatih);
+}
+
+function loadDashboard(){
+    // Load data card + aktivitas terbaru
+    google.script.run
+    .withSuccessHandler(function(data){
+
+        document.getElementById("totalPelatih").innerText = data.totalPelatih;
+        document.getElementById("totalUKM").innerText = data.totalUKM;
+        document.getElementById("sedangLatihan").innerText = data.sedangLatihan;
+        document.getElementById("absensiHariIni").innerText = data.absensiHariIni;
+        renderRecentActivity(data.aktivitasTerbaru);
+
+    })
+    .getDashboardAdmin();
+    // Load grafik
+    google.script.run
+    .withSuccessHandler(function(data){
+        drawChartAbsensi(data);
+    })
+    .getStatistikAbsensi7Hari();
+
+}
+
+function loadFilterKegiatan(){
+
+    const kategori = document.getElementById("filterKategoriPelatih").value;
+
+    const select = document.getElementById("filterUKMPelatih");
+
+    select.innerHTML = `<option value="">Memuat...</option>`;
+
+    if(kategori == "UKM"){
+        google.script.run
+        .withSuccessHandler(function(data){
+            select.innerHTML = `<option value="">Semua UKM</option>`;
+            data.forEach(function(item){
+                select.innerHTML += `
+                    <option value="${item}">
+                        ${item}
+                    </option>
+                `;
+            });
+        })
+        .getListUKM();
+    }
+
+    else if(kategori == "CLUB"){
+
+        google.script.run
+        .withSuccessHandler(function(data){
+            select.innerHTML = `<option value="">Semua CLUB</option>`;
+            data.forEach(function(item){
+
+                select.innerHTML += `
+                    <option value="${item}">
+                        ${item}
+                    </option>
+                `;
+            });
+        })
+        .getListClub();
+    }
+
+    else{
+        google.script.run
+        .withSuccessHandler(function(ukm){
+            google.script.run
+            .withSuccessHandler(function(club){
+
+                select.innerHTML = `<option value="">Semua Kegiatan</option>`;
+                ukm.forEach(function(item){
+                    select.innerHTML += `
+                        <option value="${item}">
+                            ${item}
+                        </option>
+                    `;
+                });
+
+                club.forEach(function(item){
+
+                    select.innerHTML += `
+                        <option value="${item}">
+                            ${item}
+                        </option>
+                    `;
+                });
+            })
+            .getListClub();
+        })
+        .getListUKM();
+    }
+}
+
+let allAbsensi = [];
+function loadAbsensi(){
+
+    google.script.run
+    .withSuccessHandler(function(data){
+        allAbsensi = data;
+        loadFilterAbsensi();
+        loadFilterKegiatanAbsensi();
+        renderAbsensi(data);
+    })
+
+    .withFailureHandler(function(err){
+        console.log(err);
+    })
+    .getListAbsensi();
+
+}
+
+function renderAbsensi(data){
+
+    if(!Array.isArray(data)){
+        console.log("renderAbsensi menerima data yang bukan array:", data);
+        return;
+    }
+
+    const tbody = document.getElementById("listAbsensi");
+
+    tbody.innerHTML = "";
+
+    data.forEach(function(item){
+
+        let badge =
+            item.status == "Selesai"
+            switch(item.status){
+                case "Selesai":
+                    badge = '<span class="badge-active">Selesai</span>';
+                    break;
+                case "Sedang Latihan":
+                    badge = '<span class="badge-warning">Sedang Latihan</span>';
+                    break;
+                case "Tidak Absen Pulang":
+                    badge = '<span class="badge-danger">Tidak Absen Pulang</span>';
+                    break;
+                default:
+                    badge = '<span class="badge-secondary">'+item.status+'</span>';
+            }
+
+        tbody.innerHTML += `
+            <tr>
+                <td>${item.tanggalDisplay}</td>
+                <td>${item.nama}</td>
+                <td>${item.ukm}</td>
+                <td>${item.jamMasuk}</td>
+                <td>${item.jamPulang || "-"}</td>
+                <td>${badge}</td>
+                <td>
+                    <button class="btn-edit"
+                        onclick='detailAbsensi(${JSON.stringify(item)})'>
+                        👁 Detail
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+
+}
+
+function detailAbsensi(item){
+
+    currentAbsensi = item;
+    document.getElementById("detailNama").innerText = item.nama;
+    document.getElementById("detailUKM").innerText = item.ukm;
+    document.getElementById("detailStatus").innerText = item.status;
+    document.getElementById("detailTanggal").innerText = item.tanggalDisplay;
+    document.getElementById("detailMasuk").innerText = item.jamMasuk;
+    document.getElementById("detailPulang").innerText = item.jamPulang || "-";
+    document.getElementById("detailLogbook").innerText = item.logbook || "-";
+    document.getElementById("detailCatatan").innerText = item.catatan || "-";
+    document.getElementById("editJamMasuk").value = item.jamMasuk || "";
+    document.getElementById("editJamPulang").value = item.jamPulang || "";
+    document.getElementById("editStatusAbsensi").value = item.status || "";
+    document.getElementById("editLogbook").value = item.logbook || "";
+    document.getElementById("editCatatan").value = item.catatan || "";
+    const btnMasuk = document.getElementById("btnFotoMasuk");
+    const labelMasuk = document.getElementById("labelFotoMasuk");
+
+    if(item.fotoMasuk && item.fotoMasuk.includes("drive.google")){
+        btnMasuk.style.display = "inline-block";
+        labelMasuk.style.display = "none";
+        btnMasuk.onclick = function(){
+            window.open(item.fotoMasuk, "_blank");
+        };
+
+    }else{
+        btnMasuk.style.display = "none";
+        labelMasuk.style.display = "inline";
+        labelMasuk.innerText = item.fotoMasuk || "-";
+    }
+
+    const btnPulang = document.getElementById("btnFotoPulang");
+
+    if(item.fotoPulang && item.fotoPulang.includes("drive.google")){
+        btnPulang.style.display = "inline-block";
+        btnPulang.onclick = function(){
+            window.open(item.fotoPulang, "_blank");
+        };
+    }else{
+        btnPulang.style.display = "none";
+    }
+    document.getElementById("modalDetailAbsensi").style.display = "flex";
+}
+
+function detailAbsensiByIndex(index){
+    detailAbsensi(allAbsensi[index]);
+}
+
+function closeDetailAbsensi(){
+
+    document.getElementById("modalDetailAbsensi").style.display = "none";
+
+}
+
+function filterAbsensi(){
+    const tanggalMulai =document.getElementById("tanggalMulai").value;
+    const tanggalSelesai =document.getElementById("tanggalSelesai").value;
+    const keyword =document.getElementById("searchAbsensi").value.toLowerCase();
+    const ukm =document.getElementById("filterUKMAbsensi").value;
+    const status =document.getElementById("filterStatusAbsensi").value;
+    const kategori =document.getElementById("filterKategoriAbsensi").value;
+
+    const hasil = allAbsensi.filter(function(item){
+
+        const cocokNama =item.nama.toLowerCase().includes(keyword);
+        const cocokUKM =ukm == "" ||item.ukm == ukm;
+        const cocokStatus =status == "" ||item.status == status;
+        const cocokTanggalAwal =tanggalMulai === "" ||item.tanggal >= tanggalMulai;
+        const cocokTanggalAkhir =tanggalSelesai === "" ||item.tanggal <= tanggalSelesai;
+        const cocokKategori = kategori == "" ||(kategori == "UKM" && allUKM.includes(item.ukm))||(kategori == "CLUB" && allClub.includes(item.ukm));
+        return cocokNama && cocokKategori && cocokUKM && cocokStatus && cocokTanggalAwal && cocokTanggalAkhir;;
+
+    });
+
+    renderAbsensi(hasil);
+}
+
+function loadFilterAbsensi(){
+
+    google.script.run
+    .withSuccessHandler(function(data){
+        const selectUKM = document.getElementById("filterUKMAbsensi");
+        selectUKM.innerHTML =
+            `<option value="">Semua UKM</option>`;
+        data.forEach(function(ukm){
+            selectUKM.innerHTML += `
+                <option value="${ukm}">
+                    ${ukm}
+                </option>
+            `;
+        });
+    })
+    .getListUKM();
+    const selectStatus = document.getElementById("filterStatusAbsensi");
+    selectStatus.innerHTML = `
+        <option value="">Semua Status</option>
+        <option value="Sedang Latihan">Sedang Latihan</option>
+        <option value="Selesai">Selesai</option>
+        <option value="Tidak Absen Pulang">Tidak Absen Pulang</option>
+    `;
+}
+
+function loadUKMAdmin(){
+    google.script.run
+    .withSuccessHandler(function(data){
+
+        allUKM = data;
+        renderUKM(data);
+
+    })
+    .getListUKM();
+}
+
+function renderUKM(data){
+    const tbody =
+        document.getElementById("listUKM");
+
+    tbody.innerHTML = "";
+
+    data.forEach(function(item,index){
+
+        tbody.innerHTML += `
+        <tr>
+            <td>${index+1}</td>
+            <td>${item}</td>
+           <td>
+                <button
+                    class="btn-edit"
+                    onclick="editUKM('${item}')">
+
+                    <i class="fa-solid fa-pen"></i>
+                    Edit
+                </button>
+
+                <button
+                    class="btn-delete"
+                    onclick="hapusUKM('${item}')">
+
+                    <i class="fa-solid fa-trash"></i>
+                    Hapus
+                </button>
+            </td>
+        </tr>
+        `;
+
+    });
+
+}
+function openTambahUKM(){
+
+    document.getElementById("judulUKM").innerText = "Tambah UKM";
+    document.getElementById("oldNamaUKM").value = "";
+    document.getElementById("namaUKM").value = "";
+    document.getElementById("modalUKM").style.display = "flex";
+
+}
+function closeModalUKM(){
+    document.getElementById("modalUKM").style.display = "none";
+}
+function saveUKM(){
+
+    if(isSavingUKM) return;
+    const oldNama = document.getElementById("oldNamaUKM").value;
+
+    const nama = document.getElementById("namaUKM").value.trim();
+
+    if(nama == ""){
+        tampilAlert("Nama UKM tidak boleh kosong.","warning");
+        return;
+    }
+
+    isSavingUKM = true;
+
+    const btn = document.querySelector("#modalUKM .btn-save");
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...';
+
+    const selesai = function(){
+
+        isSavingUKM = false;
+
+        btn.disabled = false;
+        btn.innerHTML = "Simpan";
+
+        closeModalUKM();
+
+        loadUKMAdmin();
+
+    };
+
+    if(oldNama == ""){
+
+        google.script.run
+        .withSuccessHandler(function(){
+
+            tampilAlert("UKM berhasil ditambahkan.","success");
+
+            selesai();
+
+        })
+        .withFailureHandler(function(err){
+
+            tampilAlert(err.message,"error");
+
+            isSavingUKM = false;
+            btn.disabled = false;
+            btn.innerHTML = "Simpan";
+
+        })
+        .addUKM(nama);
+
+    }else{
+
+        google.script.run
+        .withSuccessHandler(function(){
+
+            tampilAlert("UKM berhasil diperbarui.","success");
+            selesai();
+        })
+        .withFailureHandler(function(err){
+
+            tampilAlert(err.message,"error");
+            isSavingUKM = false;
+            btn.disabled = false;
+            btn.innerHTML = "Simpan";
+
+        })
+        .updateUKM(oldNama,nama);
+
+    }
+
+}
+function editUKM(nama){
+
+    document.getElementById("judulUKM").innerText =
+        "Edit UKM";
+
+    document.getElementById("oldNamaUKM").value =
+        nama;
+
+    document.getElementById("namaUKM").value =
+        nama;
+
+    document.getElementById("modalUKM").style.display =
+        "flex";
+
+}
+
+function hapusUKM(nama){
+
+    tampilKonfirmasi(
+        'Apakah Anda yakin ingin menghapus UKM "' + nama + '" ?',
+        function(){
+
+            // Sudah sedang menghapus
+            if(isDeletingUKM) return;
+
+            isDeletingUKM = true;
+
+            const btn = document.getElementById("btnConfirmYes");
+
+            btn.disabled = true;
+            btn.innerHTML =
+                '<i class="fa-solid fa-spinner fa-spin"></i> Menghapus...';
+
+            google.script.run
+
+            .withSuccessHandler(function(){
+
+                isDeletingUKM = false;
+
+                btn.disabled = false;
+                btn.innerHTML = "Ya, Hapus";
+
+                tampilAlert(
+                    "UKM berhasil dihapus.",
+                    "success"
+                );
+
+                loadUKMAdmin();
+
+            })
+
+            .withFailureHandler(function(err){
+
+                isDeletingUKM = false;
+
+                btn.disabled = false;
+                btn.innerHTML = "Ya, Hapus";
+
+                tampilAlert(
+                    err.message,
+                    "error"
+                );
+
+            })
+
+            .deleteUKM(nama);
+
+        }
+    );
+
+}
+
+function filterUKM(){
+
+    const keyword = document
+        .getElementById("searchUKM")
+        .value
+        .toLowerCase();
+
+    const hasil = allUKM.filter(function(item){
+
+        return item.toLowerCase().includes(keyword);
+
+    });
+
+    renderUKM(hasil);
+
+}
+
+function tampilKonfirmasi(pesan, callback){
+
+    document.getElementById("confirmMessage").innerText =
+        pesan;
+
+    document.getElementById("customConfirmModal")
+        .style.display = "flex";
+
+    document.getElementById("btnConfirmYes")
+        .onclick = function(){
+
+            closeConfirm();
+
+            callback();
+
+        };
+
+}
+
+function closeConfirm(){
+
+    document.getElementById("customConfirmModal").style.display = "none";
+
+    const btn = document.getElementById("btnConfirmYes");
+
+    btn.disabled = false;
+    btn.innerHTML = "Ya, Hapus";
+
+    isDeletingUKM = false;
+
+}
+
+function loadCLUBAdmin(){
+    google.script.run
+    .withSuccessHandler(function(data){
+        allClub = data;
+        filterClub();
+    })
+    .getListClub();
+}
+
+function renderClub(data){
+    const tbody = document.getElementById("listClub");
+    tbody.innerHTML = "";
+    data.forEach(function(item,index){
+
+        tbody.innerHTML += `
+        <tr>
+            <td>${index+1}</td>
+            <td>${item}</td>
+            <td>
+                <button
+                    class="btn-edit"
+                    onclick="editClub('${item}')">
+
+                    <i class="fa-solid fa-pen"></i>
+                    Edit
+                </button>
+
+                <button
+                    class="btn-delete"
+                    onclick="hapusClub('${item}')">
+
+                    <i class="fa-solid fa-trash"></i>
+                    Hapus
+                </button>
+            </td>
+        </tr>
+        `;
+    });
+}
+
+function filterClub(){
+
+    const keyword = document
+        .getElementById("searchClub")
+        .value
+        .trim()
+        .toLowerCase();
+
+    const hasil = allClub.filter(function(item){
+
+        return item
+            .toLowerCase()
+            .includes(keyword);
+
+    });
+
+    renderClub(hasil);
+
+}
+
+function editClub(nama){
+    document.getElementById("judulClub").innerText =
+        "Edit CLUB";
+    document.getElementById("oldNamaClub").value =
+        nama;
+    document.getElementById("namaClub").value =
+        nama;
+    document.getElementById("modalClub").style.display =
+        "flex";
+}
+
+function saveClub(){
+
+    if(isSavingClub) return;
+
+    const oldNama =
+        document.getElementById("oldNamaClub").value;
+
+    const nama =
+        document.getElementById("namaClub").value.trim();
+
+    if(nama == ""){
+
+        tampilAlert("Nama CLUB tidak boleh kosong.","warning");
+        return;
+
+    }
+
+    isSavingClub = true;
+    const btn = document.querySelector("#modalClub .btn-save");
+    btn.disabled = true;
+    btn.innerHTML =
+        '<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...';
+
+    const selesai = function(){
+
+        isSavingClub = false;
+
+        btn.disabled = false;
+        btn.innerHTML = "Simpan";
+
+        closeModalClub();
+
+        loadCLUBAdmin();
+    };
+
+    if(oldNama == ""){
+        google.script.run
+
+        .withSuccessHandler(function(){
+            tampilAlert(
+                "CLUB berhasil ditambahkan.",
+                "success"
+            );
+            selesai();
+        })
+
+        .withFailureHandler(function(err){
+            isSavingClub = false;
+            btn.disabled = false;
+            btn.innerHTML = "Simpan";
+
+            tampilAlert(
+                err.message,
+                "error"
+            );
+        })
+        .addClub(nama);
+    }else{
+        google.script.run
+        .withSuccessHandler(function(){
+            tampilAlert(
+                "CLUB berhasil diperbarui.",
+                "success"
+            );
+            selesai();
+        })
+
+        .withFailureHandler(function(err){
+
+            isSavingClub = false;
+            btn.disabled = false;
+            btn.innerHTML = "Simpan";
+
+            tampilAlert(
+                err.message,
+                "error"
+            );
+        })
+        .updateClub(oldNama, nama);
+    }
+}
+
+function hapusClub(nama){
+    tampilKonfirmasi(
+        'Apakah Anda yakin ingin menghapus CLUB "'+nama+'"?',
+        function(){
+            if(isDeletingClub) return;
+            isDeletingClub = true;
+            google.script.run
+            .withSuccessHandler(function(){
+                isDeletingClub = false;
+                tampilAlert(
+                    "CLUB berhasil dihapus.",
+                    "success"
+                );
+                loadCLUBAdmin();
+            })
+
+            .withFailureHandler(function(err){
+                isDeletingClub = false;
+                tampilAlert(err.message,"error");
+            })
+            .deleteClub(nama);
+        }
+    );
+}
+
+function openTambahClub(){
+    document.getElementById("judulClub").innerText = "Tambah CLUB";
+    document.getElementById("oldNamaClub").value = "";
+    document.getElementById("namaClub").value = "";
+    document.getElementById("modalClub").style.display = "flex";
+}
+
+function closeModalClub(){
+    document.getElementById("modalClub").style.display =
+        "none";
+}
+
+function setDefaultTanggal(){
+    const mulai = document.getElementById("tanggalMulai");
+    const selesai = document.getElementById("tanggalSelesai");
+    // Kalau sudah pernah dipilih user, jangan reset lagi
+    if(mulai.value || selesai.value){
+        return;
+    }
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth()+1).padStart(2,"0");
+    const dd = String(today.getDate()).padStart(2,"0");
+    const tanggal = `${yyyy}-${mm}-${dd}`;
+    mulai.value = tanggal;
+    selesai.value = tanggal;
+
+}
+
+function renderRecentActivity(data){
+
+    const div =
+        document.getElementById("recentActivityList");
+
+    div.innerHTML="";
+
+    data.forEach(function(item){
+        let icon="🟢";
+
+        if(item.status=="Selesai")
+            icon="🔵";
+        if(item.status=="Sedang Latihan")
+            icon="🟠";
+        if(item.status=="Tidak Absen Pulang")
+            icon="🔴";
+        div.innerHTML += `
+
+        <div class="activity-item">
+            <div class="activity-icon">
+                ${icon}
+            </div>
+            <div>
+                <strong>
+                    ${item.nama}
+                </strong>
+                <br>
+                ${item.status}
+                <br>
+                <small>
+                    ${item.ukm} • ${item.jam}
+                </small>
+            </div>
+        </div>
+        `;
+    });
+}
+
+function drawChartAbsensi(data){
+    const ctx =
+        document
+        .getElementById("chartAbsensi");
+    if(chartAbsensi){
+        chartAbsensi.destroy();
+    }
+
+    chartAbsensi = new Chart(ctx,{
+        type:"bar",
+        data:{
+            labels:data.labels,
+            datasets:[{
+                label:"Jumlah Absensi",
+                data:data.values,
+                borderWidth:1
+            }]
+        },
+
+        options:{
+            responsive:true,
+            plugins:{
+                legend:{
+                    display:false
+                }
+            },
+
+            scales:{
+                y:{
+                    beginAtZero:true
+                }
+            }
+        }
+    });
+}
+
+function debounce(func, delay){
+    let timer;
+    return function(){
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+            func.apply(this, arguments);
+        }, delay);
+    };
+}
+
+function initSearch(){
+    const searchPelatih = document.getElementById("searchPelatih");
+
+    if(searchPelatih){
+        searchPelatih.addEventListener(
+            "input",
+            debounce(filterPelatih,300)
+        );
+    }
+
+    const searchAbsensi = document.getElementById("searchAbsensi");
+
+    if(searchAbsensi){
+        searchAbsensi.addEventListener(
+            "input",
+            debounce(filterAbsensi,300)
+        );
+    }
+
+    const searchUKM = document.getElementById("searchUKM");
+
+    if(searchUKM){
+        searchUKM.addEventListener(
+            "input",
+            debounce(filterUKM,300)
+        );
+    }
+
+    const searchClub = document.getElementById("searchClub");
+
+    if(searchClub){
+        searchClub.addEventListener(
+            "input",
+            debounce(filterClub,300)
+        );
+    }
+
+}
+
+function loadPelatihLogbook(){
+    google.script.run
+    .withSuccessHandler(function(data){
+        const select =
+            document.getElementById("logbookPelatih");
+
+        select.innerHTML =
+            `<option value="">-- Pilih Pelatih --</option>`;
+
+        data.forEach(function(item){
+
+            select.innerHTML += `
+                <option value="${item.id}">
+                    ${item.nama}
+                </option>
+            `;
+        });
+    })
+    .getListPelatihLogbook();
+}
+
+function previewLogbook(){
+    const idPelatih = document.getElementById("logbookPelatih").value;
+    const tanggalMulai = document.getElementById("logbookTanggalMulai").value;
+    const tanggalSelesai = document.getElementById("logbookTanggalSelesai").value;
+
+    if(idPelatih==""){
+        tampilAlert("Silakan pilih pelatih.","warning");
+        return;
+    }
+
+    if(!tanggalMulai || !tanggalSelesai){
+    tampilAlert("Silakan pilih rentang tanggal.","warning");
+    return;
+    }
+
+    if(tanggalMulai > tanggalSelesai){
+        tampilAlert("Tanggal mulai tidak boleh melebihi tanggal selesai.","warning");
+        return;
+    }
+
+    showLoading();
+
+    google.script.run
+    .withSuccessHandler(function(data){
+
+        console.log("DATA DARI SERVER");
+        console.log(data);
+
+        console.log("ABSENSI");
+        console.log(data.absensi);
+
+        if(data.status != "success"){
+            tampilAlert(data.message,"error");
+            return;
+        }
+
+        renderPreviewLogbook(data);
+        hideLoading();
+
+    })
+    .getPreviewLogbook(idPelatih,tanggalMulai,tanggalSelesai);
+}
+
+function renderPreviewLogbook(data){
+    function formatTanggalIndonesia(tanggal){
+        return new Date(tanggal).toLocaleDateString("id-ID",{
+            day:"2-digit",
+            month:"long",
+            year:"numeric"
+        });
+    }   
+    const preview = document.getElementById("previewLogbook");
+    let html = "";
+    html += `
+    <div class="logbook-paper">
+        <div class="logbook-header">
+            <h2>UNIVERSITAS CIPUTRA</h2>
+            <h3>LOGBOOK PELATIH</h3>
+        </div>
+
+        <div class="logbook-info">
+            <p><b>Nama :</b> ${data.pelatih.nama}</p>
+            <p><b>ID :</b> ${data.pelatih.id}</p>
+            <p><b>Kategori :</b> ${data.pelatih.jenis}</p>
+            <p><b>Kegiatan :</b> ${data.pelatih.kegiatan}</p>
+            <p>
+                <b>Periode :</b>
+                ${formatTanggalIndonesia(data.tanggalMulai)}
+                s.d.
+                ${formatTanggalIndonesia(data.tanggalSelesai)}
+            </p>
+        </div>
+
+        <table class="logbook-table">
+            <thead>
+                <tr>
+                    <th>No</th>
+                    <th>Tanggal</th>
+                    <th>Clock In</th>
+                    <th>Clock Out</th>
+                    <th>Aktivitas</th>
+                    <th>Tanda Tangan</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    if(data.absensi.length === 0){
+
+        html += `
+            <tr>
+                <td colspan="6"
+                    style="text-align:center;padding:25px;">
+                    Tidak ada data logbook pada rentang tanggal yang dipilih.
+                </td>
+            </tr>
+        `;
+
+    }else{
+
+        data.absensi.forEach(function(item,index){
+           html += `
+            <tr>
+                <td>${index+1}</td>
+                <td>${item.tanggal}</td>
+                <td>${item.jamMasuk}</td>
+                <td>${item.jamPulang}</td>
+                <td>${item.logbook}</td>
+                <td>
+                    <canvas
+                        class="signature-preview"
+                        width="360"
+                        height="170"
+                        data-signature='${data.pelatih.tandaTangan}'>
+                    </canvas>
+                </td>
+            </tr>
+        `;
+        });
+
+    }
+        html += `
+        </tbody>
+        </table>
+        <div class="logbook-footer">
+            <div>
+                <b>Jumlah Kehadiran :</b>
+                ${data.absensi.length} Hari
+            </div>
+
+            <div>
+                Dicetak :
+                ${new Date().toLocaleDateString("id-ID")}
+            </div>
+        </div>
+    </div>
+`;
+    preview.innerHTML = html;
+
+    // ==========================
+    // Render tanda tangan
+    // ==========================
+
+    const canvases = document.querySelectorAll(".signature-preview");
+    canvases.forEach(function(canvas){
+        const signature = canvas.dataset.signature;
+        if(!signature || signature.trim() === "")
+            return;
+        try{
+            const pad = new SignaturePad(canvas);
+            pad.fromData(JSON.parse(signature));
+            pad.off();
+        }catch(err){
+
+            console.error("Gagal render tanda tangan", err);
+        }
+    });
+}
+
+function exportPDF(){
+    const idPelatih = document.getElementById("logbookPelatih").value;
+    const namaPelatih = document.getElementById("logbookPelatih")
+        .options[document.getElementById("logbookPelatih").selectedIndex].text.trim();
+    const tanggalMulai = document.getElementById("logbookTanggalMulai").value;
+    const tanggalSelesai = document.getElementById("logbookTanggalSelesai").value;
+
+    google.script.run
+    .withSuccessHandler(function(res){
+
+        if(res.status != "success"){
+            const mulai = new Date(res.tanggalMulai).toLocaleDateString("id-ID",{
+                day:"2-digit",
+                month:"long",
+                year:"numeric"
+            });
+
+            const selesai = new Date(res.tanggalSelesai).toLocaleDateString("id-ID",{
+                day:"2-digit",
+                month:"long",
+                year:"numeric"
+            });
+
+            const mulaiDipilih = new Date(tanggalMulai).toLocaleDateString("id-ID",{
+                day:"2-digit",
+                month:"long",
+                year:"numeric"
+            });
+
+            const selesaiDipilih = new Date(tanggalSelesai).toLocaleDateString("id-ID",{
+                day:"2-digit",
+                month:"long",
+                year:"numeric"
+            });
+
+            tampilAlert(
+            `
+            <div style="text-align:left; line-height:1.8;">
+                <b>Rentang tanggal yang dipilih tidak dapat diekspor karena bertabrakan dengan laporan yang telah ditutup.</b>
+
+                <br><br>
+
+                <b>📅 Periode yang dipilih</b><br>
+                ${mulaiDipilih} s.d. ${selesaiDipilih}
+
+                <br><br>
+
+                <b>🔒 Periode yang telah ditutup</b><br>
+                ${mulai} s.d. ${selesai}
+
+                <br><br>
+
+                Silakan pilih rentang tanggal yang lain.
+            </div>
+            `,
+            "warning"
+            );
+            return;
+        }
+
+        generatePDF(
+            namaPelatih,
+            tanggalMulai,
+            tanggalSelesai,
+            idPelatih
+        );
+    })
+    .withFailureHandler(function(err){
+    tampilAlert(err.message,"error");
+    })
+    .cekRiwayatLaporan(
+        idPelatih,
+        tanggalMulai,
+        tanggalSelesai
+    );
+}
+
+async function generatePDF(
+    namaPelatih,
+    tanggalMulai,
+    tanggalSelesai,
+    idPelatih
+){
+
+    const element = document.querySelector(".logbook-paper");
+
+    if(!element){
+        tampilAlert("Preview belum dibuat.","warning");
+        return;
+    }
+
+    const namaFile =
+        `${namaPelatih.replace(/[\\/:*?"<>|]/g,"")
+        .replace(/\s+/g,"_")}_${tanggalMulai}_sd_${tanggalSelesai}_Logbook.pdf`;
+
+    const option = {
+
+        margin: [5, 5, 5, 5],
+
+        filename:namaFile,
+
+        image:{
+            type:"jpeg",
+            quality:1
+        },
+
+        html2canvas:{
+            scale:2,
+            useCORS:true
+        },
+
+        jsPDF:{
+            unit:"mm",
+            format:"a4",
+            orientation:"portrait"
+        },
+
+        pagebreak:{
+            mode:["avoid-all","css"]
+        }
+
+    };
+
+    await html2pdf()
+        .set(option)
+        .from(element)
+        .save();
+
+    google.script.run
+        .withSuccessHandler(function(){
+
+            tampilAlert(
+                "Laporan berhasil diekspor dan periode telah ditutup.",
+                "success"
+            );
+
+        })
+        .withFailureHandler(function(err){
+
+            tampilAlert(err.message,"error");
+
+        })
+        .simpanRiwayatLaporan(
+            idPelatih,
+            namaPelatih,
+            tanggalMulai,
+            tanggalSelesai
+        );
+}
+// loading
+function showLoading(){
+    document.getElementById("loadingOverlay").style.display = "flex";
+}
+
+function hideLoading(){
+    document.getElementById("loadingOverlay").style.display = "none";
+}
+
+function enableEditAbsensi(){
+    console.log(currentAbsensi.status);
+    // Isi nilai input
+    document.getElementById("editJamMasuk").value = currentAbsensi.jamMasuk;
+    document.getElementById("editJamPulang").value = currentAbsensi.jamPulang;
+    document.getElementById("editStatusAbsensi").value = currentAbsensi.status;
+    document.getElementById("editLogbook").value = currentAbsensi.logbook;
+    document.getElementById("editCatatan").value = currentAbsensi.catatan;
+
+    // Sembunyikan mode view
+    document.getElementById("detailMasuk").style.display = "none";
+    document.getElementById("detailPulang").style.display = "none";
+    document.getElementById("detailStatus").style.display = "none";
+    document.getElementById("detailLogbook").style.display = "none";
+    document.getElementById("detailCatatan").style.display = "none";
+
+    // Tampilkan mode edit
+    document.getElementById("editJamMasuk").style.display = "block";
+    document.getElementById("editJamPulang").style.display = "block";
+    document.getElementById("editStatusAbsensi").style.display = "block";
+    document.getElementById("editLogbook").style.display = "block";
+    document.getElementById("editCatatan").style.display = "block";
+
+    // Tombol
+    document.getElementById("btnEditAbsensi").style.display = "none";
+    document.getElementById("btnTutupAbsensi").style.display = "none";
+    document.getElementById("btnSimpanAbsensi").style.display = "inline-block";
+    document.getElementById("btnBatalEdit").style.display = "inline-block";
+}
+
+function batalEditAbsensi(){
+    // Tampilkan kembali mode view
+    document.getElementById("detailMasuk").style.display = "";
+    document.getElementById("detailPulang").style.display = "";
+    document.getElementById("detailStatus").style.display = "";
+    document.getElementById("detailLogbook").style.display = "";
+    document.getElementById("detailCatatan").style.display = "";
+
+    // Sembunyikan input
+    document.getElementById("editJamMasuk").style.display = "none";
+    document.getElementById("editJamPulang").style.display = "none";
+    document.getElementById("editStatusAbsensi").style.display = "none";
+    document.getElementById("editLogbook").style.display = "none";
+    document.getElementById("editCatatan").style.display = "none";
+
+    // Tombol
+    document.getElementById("btnEditAbsensi").style.display = "inline-block";
+    document.getElementById("btnTutupAbsensi").style.display = "inline-block";
+    document.getElementById("btnSimpanAbsensi").style.display = "none";
+    document.getElementById("btnBatalEdit").style.display = "none";
+}
+
+function simpanEditAbsensi(){
+    const data = {
+        row: currentAbsensi.row,
+        jamMasuk: document.getElementById("editJamMasuk").value,
+        jamPulang: document.getElementById("editJamPulang").value,
+        status: document.getElementById("editStatusAbsensi").value,
+        logbook: document.getElementById("editLogbook").value.trim(),
+        catatan: document.getElementById("editCatatan").value.trim()
+
+    };
+
+    if(data.catatan == ""){
+        tampilAlert(
+            "Catatan perubahan wajib diisi.",
+            "warning"
+        );
+        return;
+    }
+
+   google.script.run
+    .withSuccessHandler(function(){
+
+        tampilAlert(
+            "Absensi berhasil diperbarui.",
+            "success"
+        );
+        batalEditAbsensi();
+        closeDetailAbsensi();
+        loadAbsensi();
+    })
+    .withFailureHandler(function(err){
+        tampilAlert(
+            err.message,
+            "error"
+        );
+    })
+    .updateAbsensi(data);
+}
+
+function loadFilterKegiatanAbsensi(){
+    const kategori =document.getElementById("filterKategoriAbsensi").value;
+    const select =document.getElementById("filterUKMAbsensi");
+    select.innerHTML = "";
+
+    if(kategori == "UKM"){
+        google.script.run
+        .withSuccessHandler(function(data){
+            select.innerHTML =`<option value="">Semua UKM</option>`;
+            data.forEach(function(item){
+                select.innerHTML += `<option value="${item}">${item}</option>`;
+            });
+        })
+        .getListUKM();
+    }
+    else if(kategori == "CLUB"){
+        google.script.run
+        .withSuccessHandler(function(data){
+            select.innerHTML = `<option value="">Semua CLUB</option>`;
+            data.forEach(function(item){
+                select.innerHTML += `<option value="${item}">${item}</option>`;
+            });
+        })
+        .getListClub();
+    }
+    else{
+        google.script.run
+        .withSuccessHandler(function(ukm){
+            google.script.run
+            .withSuccessHandler(function(club){
+                select.innerHTML = `<option value="">Semua Kegiatan</option>`;
+                ukm.forEach(function(item){
+                    select.innerHTML +=`<option value="${item}">${item}</option>`;
+                });
+
+                club.forEach(function(item){
+                    select.innerHTML += `<option value="${item}">${item}</option>`;
+                });
+            })
+            .getListClub();
+        })
+        .getListUKM();
+    }
+}
+function loadMasterKategori(callback){
+    google.script.run
+    .withSuccessHandler(function(ukm){
+        allUKM = ukm;
+        google.script.run
+        .withSuccessHandler(function(club){
+            allClub = club;
+            if(callback){
+                callback();
+            }
+        })
+        .getListClub();
+
+    })
+    .getListUKM();
+}
+
+
+</script>
